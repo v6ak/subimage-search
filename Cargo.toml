@@ -1,0 +1,26 @@
+[package]
+name = "subimage_search"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wasm-bindgen = "0.2.100"
+console_log = "1.0.0"
+log = "0.4.26"
+yew = { version = "0.21.0", features = ["csr"] }
+
+web-sys = { version = "0.3", features = [
+    "Document", "Element", "HtmlElement", "Window",
+    "HtmlInputElement", "FileList", "File", "FileReader",
+    "HtmlImageElement", "Event", "DragEvent", "DataTransfer"
+]}
+gloo = "0.11.0"
+js-sys = "0.3.77"
+wasm-bindgen-futures = "0.4.50"
+oneshot = "0.1.11"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+lto = true

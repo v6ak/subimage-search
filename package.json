@@ -1,0 +1,16 @@
+{
+  "name": "subimage-search",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir ./pkg && vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "sass-embedded": "^1.85.1",
+    "vite": "6.2.1"
+  },
+  "dependencies": {
+    "wasm-pack": "0.13.1"
+  }
+}
