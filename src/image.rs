@@ -73,10 +73,10 @@ impl ImageData {
         tse
     }
 
-    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64) -> SearchResults
+    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64, max_results: u16) -> SearchResults
         where F: Fn(f32) + 'static
     {
-        let mut results = SearchResults::new(100);
+        let mut results = SearchResults::new(max_results);
         let square_errors_divisor = search_image.width * search_image.height * 4;
         let max_tse = ((max_mse as TSEF) * (square_errors_divisor as TSEF) * 65536.0).ceil() as TSE;
         let total_rows = self.height - search_image.height;

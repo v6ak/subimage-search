@@ -18,6 +18,7 @@ struct SubimageSearch {
     result: Option<SearchResults>, // Store result message
     progress: f32, // Track progress of image processing (0.0 to 1.0)
     max_mse: f64, // Maximum mean squared error threshold
+    max_results: u16, // Maximum number of search results
 }
 
 // Application messages
@@ -28,6 +29,7 @@ enum Msg {
     UpdateProgress(f32),
     ProcessingComplete(Option<SearchResults>), // Result message from processing
     UpdateMaxMse(f64),
+    UpdateMaxResults(u16), // Message to update max_results
 }
 
 impl Component for SubimageSearch {
@@ -39,6 +41,7 @@ impl Component for SubimageSearch {
         log::info!("Subimage Search Application Initialized with Yew");
         Self {
             max_mse: 0.01,
+            max_results: 100,
             ..Self::default()
         }
     }
@@ -62,6 +65,7 @@ impl Component for SubimageSearch {
                 // Launch async image processing
                 let link = ctx.link().clone();
                 let max_mse = self.max_mse;
+                let max_results = self.max_results;
                 spawn_local(async move {
                     match load_images_for_processing().await {
                         Ok((main_img_data, search_img_data)) => {
@@ -72,6 +76,7 @@ impl Component for SubimageSearch {
                                 &search_img_data,
                                 move |progress| link_cloned.send_message(Msg::UpdateProgress(progress)),
                                 max_mse,
+                                max_results,
                             ).await;
                             link.send_message(Msg::ProcessingComplete(Some(result)));
                         }
@@ -99,6 +104,10 @@ impl Component for SubimageSearch {
                 self.max_mse = new_max_mse_percent / 100.0;
                 true
             }
+            Msg::UpdateMaxResults(new_max_results) => {
+                self.max_results = new_max_results;
+                true
+            }
         }
     }
 
@@ -122,6 +131,13 @@ impl Component for SubimageSearch {
             let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
             let value = value_str.parse::<f64>().unwrap();  // safe, because input type is number
             Msg::UpdateMaxMse(value)
+        });
+
+        // Handle max_results input change
+        let on_max_results_change = ctx.link().callback(|e: InputEvent| {
+            let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
+            let value = value_str.parse::<u16>().unwrap(); // safe, because input type is number
+            Msg::UpdateMaxResults(value)
         });
 
         // Format progress percentage
@@ -213,6 +229,17 @@ impl Component for SubimageSearch {
                         disabled={self.processing}
                         step="0.1"
                         min="0"
+                        max="100"
+                    />
+                    <label for="maxResultsInput">{"Maximum number of results:"}</label>
+                    <input
+                        type="number"
+                        id="maxResultsInput"
+                        value={self.max_results.to_string()}
+                        oninput={on_max_results_change}
+                        disabled={self.processing}
+                        step="1"
+                        min="1"
                         max="100"
                     />
                 </div>
