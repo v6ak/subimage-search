@@ -105,7 +105,7 @@ impl ImageData {
         progress_callback: F,
         max_mse: f64,
         max_results: u16,
-    ) -> SearchResults
+    ) -> Result<SearchResults, String>
     where
         F: Fn(f32) + 'static,
     {
@@ -128,6 +128,12 @@ impl ImageData {
             (max_tse as f64) / (square_errors_divisor as f64) / 65536.0
         );
 
+        if self.height < search_image.height {
+            return Err("Main image height is smaller than search image height".to_string());
+        }
+        if self.width < search_image.width {
+            return Err("Main image width is smaller than search image width".to_string());
+        }
         // y comes first because of memory locality
         // half-open interval, hence + 1 for the upper bound
         for y in 0..(self.height - search_image.height + 1) {
@@ -157,7 +163,7 @@ impl ImageData {
 
         progress_callback(1.0);
 
-        results.finalize()
+        Ok(results.finalize())
     }
 }
 

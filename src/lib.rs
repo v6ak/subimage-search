@@ -17,11 +17,11 @@ use image_input::ImageInput;
 struct SubimageSearch {
     main_image: Option<String>,
     search_image: Option<String>,
-    processing: bool,              // Track if processing is in progress
-    result: Option<SearchResults>, // Store result message
-    progress: f32,                 // Track progress of image processing (0.0 to 1.0)
-    max_mse: f64,                  // Maximum mean squared error threshold
-    max_results: u16,              // Maximum number of search results
+    processing: bool, // Track if processing is in progress
+    result: Option<Result<SearchResults, String>>, // Store result message
+    progress: f32,    // Track progress of image processing (0.0 to 1.0)
+    max_mse: f64,     // Maximum mean squared error threshold
+    max_results: u16, // Maximum number of search results
 }
 
 // Application messages
@@ -30,7 +30,7 @@ enum Msg {
     SearchImageLoaded(String),
     ProcessImages,
     UpdateProgress(f32),
-    ProcessingComplete(Option<SearchResults>), // Result message from processing
+    ProcessingComplete(Option<Result<SearchResults, String>>), // Result message from processing
     UpdateMaxMse(f64),
     UpdateMaxResults(u16), // Message to update max_results
     NewSearch,
@@ -285,8 +285,19 @@ impl Component for SubimageSearch {
 
                 <div id="results">
                     {
-                        if let Some(result) = &self.result {
-                            html! {
+                        match &self.result {
+                            Some(Err(err)) => {
+                                html! {
+                                    <div class="result-container">
+                                        <h2>{"Error"}</h2>
+                                        <div class="error-message">
+                                            <h3>{"An error occurred during processing"}</h3>
+                                            <p>{err}</p>
+                                        </div>
+                                    </div>
+                                }
+                            },
+                            Some(Ok(result)) => html! {
                                 <div class="result-container">
                                     <h2>{"Search results"}</h2>
                                     <div class="result-message">
@@ -338,9 +349,8 @@ impl Component for SubimageSearch {
                                         }
                                     </ol>
                                 </div>
-                            }
-                        } else {
-                            html! {}
+                            },
+                            None =>html! {}
                         }
                     }
                 </div>

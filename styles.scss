@@ -169,14 +169,21 @@ body {
 
   margin-top: 20px;
 
-  .result-message {
+  .result-message, .error-message {
     padding: 15px;
-    background-color: #f5f5f5;
-    border-left: 4px solid #4CAF50;
+    border-left: 4px solid;
     border-radius: 4px;
     margin-top: 20px;
     font-size: 0.9em;
     line-height: 1.5;
+  }
+  .result-message {
+    background-color: #f5f5f5;
+    border-left-color: #4CAF50;
+  }
+  .error-message {
+    background-color: #f8d7da;
+    border-left-color: #dc3545;
   }
 
   .result-container {
