@@ -16,6 +16,7 @@ struct SubimageSearch {
     processing: bool, // Track if processing is in progress
     result: Option<String>, // Store result message
     progress: f32, // Track progress of image processing (0.0 to 1.0)
+    max_mse: f64, // Maximum mean squared error threshold
 }
 
 // Application messages
@@ -25,6 +26,7 @@ enum Msg {
     ProcessImages,
     UpdateProgress(f32),
     ProcessingComplete(Option<String>), // Result message from processing
+    UpdateMaxMse(f64),
 }
 
 impl Component for SubimageSearch {
@@ -34,7 +36,10 @@ impl Component for SubimageSearch {
     fn create(_ctx: &Context<Self>) -> Self {
         console_log::init_with_level(Level::Debug).expect("error initializing log");
         log::info!("Subimage Search Application Initialized with Yew");
-        Self::default()
+        Self {
+            max_mse: 0.01,
+            ..Self::default()
+        }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
@@ -55,6 +60,7 @@ impl Component for SubimageSearch {
 
                 // Launch async image processing
                 let link = ctx.link().clone();
+                let max_mse = self.max_mse;
                 spawn_local(async move {
                     match load_images_for_processing().await {
                         Ok((main_img_data, search_img_data)) => {
@@ -62,7 +68,7 @@ impl Component for SubimageSearch {
                             // Images loaded successfully - now you can process them
                             let link_cloned = link.clone();
                             let result = process_images(main_img_data, search_img_data, 
-                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress))).await;
+                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress)), max_mse).await;
                             link.send_message(Msg::ProcessingComplete(Some(result)));
                         }
                         Err(err) => {
@@ -84,6 +90,10 @@ impl Component for SubimageSearch {
                 self.progress = 1.0; // Ensure progress is complete
                 true
             }
+            Msg::UpdateMaxMse(new_max_mse_percent) => {
+                self.max_mse = new_max_mse_percent / 100.0;
+                true
+            }
         }
     }
 
@@ -102,6 +112,13 @@ impl Component for SubimageSearch {
         // Handle Process button click
         let on_process = ctx.link().callback(|_| Msg::ProcessImages);
         
+        // Handle max_mse input change
+        let on_max_mse_change = ctx.link().callback(|e: InputEvent| {
+            let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
+            let value = value_str.parse::<f64>().unwrap();  // safe, because input type is number
+            Msg::UpdateMaxMse(value)
+        });
+
         // Format progress percentage
         let progress_percent = (self.progress * 100.0) as u32;
 
@@ -181,6 +198,20 @@ impl Component for SubimageSearch {
                     }
                 </div>
                 
+                <div class="settings">
+                    <label for="maxMseInput">{"Maximum difference measured by MSE (%):"}</label>
+                    <input
+                        type="number"
+                        id="maxMseInput"
+                        value={(self.max_mse * 100.0).to_string()}
+                        oninput={on_max_mse_change}
+                        disabled={self.processing}
+                        step="0.1"
+                        min="0"
+                        max="100"
+                    />
+                </div>
+
                 <div id="results" class="results">
                     {
                         if let Some(result) = &self.result {
@@ -262,9 +293,10 @@ async fn yield_now() {
 }
 
 
-async fn process_images<F>(main_image: ImageData, search_image: ImageData, progress_callback: F) -> String
+async fn process_images<F>(main_image: ImageData, search_image: ImageData, progress_callback: F, max_mse: f64) -> String
     where F: Fn(f32) + 'static
 {
+
     let square_errors_divisor = search_image.width * search_image.height * 4;
     let total_rows = main_image.height - search_image.height;
 
@@ -281,7 +313,7 @@ async fn process_images<F>(main_image: ImageData, search_image: ImageData, progr
         for x in 0..(main_image.width - search_image.width) {            
             let sse = main_image.total_square_error(&search_image, x, y);
             let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
-            if mse < 0.01 {
+            if mse < max_mse {
                 log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
                 log::info!("sum of square errors: {} / MSE: {}", sse, mse);
             }
@@ -291,7 +323,7 @@ async fn process_images<F>(main_image: ImageData, search_image: ImageData, progr
     progress_callback(1.0);
 
     "Images loaded for processing".to_string()
-    }
+}
 
 // Starting the Yew application
 #[wasm_bindgen(start)]
