@@ -170,6 +170,7 @@ impl Component for SubimageSearch {
                                         on_upload={self.handle_file_upload(ctx, Msg::MainImageLoaded)}
                                         image={self.main_image.clone()}
                                         help={None}
+                                        disabled={self.processing}
                                     />
                                     <ImageInput
                                         label="Image to search"
@@ -178,6 +179,7 @@ impl Component for SubimageSearch {
                                         on_upload={self.handle_file_upload(ctx, Msg::SearchImageLoaded)}
                                         image={self.search_image.clone()}
                                         help={Some(image_search_help())}
+                                        disabled={self.processing}
                                     />
                                 </div>
 

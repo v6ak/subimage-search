@@ -38,3 +38,14 @@ pub fn setup_drag_handlers(element: &HtmlElement) {
         .unwrap();
     dragleave.forget();
 }
+
+pub fn setup_drag_blocking_handlers(element: &HtmlElement) {
+    let handler = Closure::wrap(Box::new(|e: Event| {
+        prevent_default(&e);
+    }) as Box<dyn FnMut(_)>);
+    for event in ["dragenter", "dragover", "dragleave", "drop"].iter() {
+        element
+            .add_event_listener_with_callback(event, handler.as_ref().unchecked_ref())
+            .unwrap();
+    }
+}

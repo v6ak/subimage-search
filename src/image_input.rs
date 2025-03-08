@@ -1,4 +1,5 @@
 use crate::drag_drop::prevent_default;
+use crate::drag_drop::setup_drag_blocking_handlers;
 use crate::drag_drop::setup_drag_handlers;
 
 use wasm_bindgen::JsCast;
@@ -15,6 +16,7 @@ pub struct ImageInputProps {
     pub on_upload: Callback<FileList>,
     pub image: Option<String>,
     pub help: Option<Html>,
+    pub disabled: bool,
 }
 
 fn on_change(cb: Callback<FileList>) -> Callback<Event> {
@@ -35,16 +37,25 @@ pub fn image_input(props: &ImageInputProps) -> Html {
     // Setup drag & drop handlers
     {
         let node_ref = node_ref.clone();
+        let disabled = props.disabled;
         use_effect_with((), move |_| {
             if let Some(element) = node_ref.cast::<HtmlElement>() {
-                setup_drag_handlers(&element);
+                if disabled {
+                    setup_drag_blocking_handlers(&element);
+                } else {
+                    setup_drag_handlers(&element);
+                }
             }
             || ()
         });
     }
 
     // Handle drop event
-    let ondrop = {
+    let ondrop = if props.disabled {
+        Callback::from(|event: DragEvent| {
+            prevent_default(&event);
+        })
+    } else {
         let on_upload = props.on_upload.clone();
         Callback::from(move |event: DragEvent| {
             prevent_default(&event);
@@ -57,7 +68,6 @@ pub fn image_input(props: &ImageInputProps) -> Html {
                         let target: web_sys::FileReader = e.target().unwrap().dyn_into().unwrap();
                         if let Ok(result) = target.result() {
                             if let Some(data_url) = result.as_string() {
-                                log::info!("Dropped file: {:?}", data_url);
                                 on_upload.emit(files.clone());
                             }
                         }
@@ -79,6 +89,7 @@ pub fn image_input(props: &ImageInputProps) -> Html {
                 id={props.input_id.clone()}
                 accept="image/*"
                 onchange={on_change(props.on_upload.clone())}
+                disabled={props.disabled}
             />
             {
                 if props.image.is_none() {
