@@ -78,7 +78,7 @@ impl ImageData {
     pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64, max_results: u16) -> SearchResults
         where F: Fn(f32) + 'static
     {
-        let mut results = SearchResults::new(max_results);
+        let mut results = SearchResults::new(max_results, search_image.width, search_image.height, self.width, self.height);
         let square_errors_divisor = search_image.width * search_image.height * 4;
         let max_tse = ((max_mse as TSEF) * (square_errors_divisor as TSEF) * 65536.0).ceil() as TSE;
         let total_rows = self.height - search_image.height;
@@ -127,14 +127,22 @@ pub struct SearchResults {
     results_ordered: Vec<SearchResult>,
     capacity: u16,
     overflown: bool,
+    template_width: u32,
+    template_height: u32,
+    main_width: u32,
+    main_height: u32,
 }
 
 impl SearchResults {
-    pub fn new(capacity: u16) -> SearchResults {
+    pub fn new(capacity: u16, template_width: u32, template_height: u32, main_width: u32, main_height: u32) -> SearchResults {
         SearchResults {
             results_ordered: Vec::with_capacity(capacity as usize),
             capacity,
             overflown: false,
+            template_height,
+            template_width,
+            main_width,
+            main_height,
         }
     }
     pub fn push(&mut self, result: SearchResult) {
@@ -168,7 +176,19 @@ impl SearchResults {
         self.shrink();
         self
     }
-    pub fn get_results(&self) -> &[SearchResult] {
+    pub fn get_matches(&self) -> &[SearchResult] {
         &self.results_ordered
+    }
+    pub fn get_template_height(&self) -> u32 {
+        self.template_height
+    }
+    pub fn get_template_width(&self) -> u32 {
+        self.template_width
+    }
+    pub fn get_main_height(&self) -> u32 {
+        self.main_height
+    }
+    pub fn get_main_width(&self) -> u32 {
+        self.main_width
     }
 }

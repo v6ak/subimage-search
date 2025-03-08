@@ -248,8 +248,52 @@ impl Component for SubimageSearch {
                     {
                         if let Some(result) = &self.result {
                             html! {
-                                <div class="result-message">
-                                    { format!("{:?}", result) }
+                                <div class="result-container">
+                                    <div class="result-message">
+                                        <h3>{if result.has_overflown() {
+                                            format!("Found many matches, showing {} most relevant", result.get_matches().len())
+                                        } else {
+                                            format!("Found {} matches", result.get_matches().len())
+                                        }}</h3>
+                                    </div>
+                                    <div class="main-image-container">
+                                        <img
+                                            src={self.main_image.clone().unwrap_or_default()}
+                                            alt="Main image with matches"
+                                            class="result-main-image"
+                                        />
+                                        {
+                                            result.get_matches().iter().enumerate().map(|(i, m)| {
+                                                let x_percent = (m.x as f64 / result.get_main_width() as f64 * 100.0) as f64;
+                                                let y_percent = (m.y as f64 / result.get_main_height() as f64 * 100.0) as f64;
+                                                let width_percent = (result.get_template_width() as f64 / result.get_main_width() as f64 * 100.0) as f64;
+                                                let height_percent = (result.get_template_height() as f64 / result.get_main_height() as f64 * 100.0) as f64;
+
+                                                html! {
+                                                    <div
+                                                        class="match-overlay"
+                                                        style={format!(
+                                                            "left: {}%; top: {}%; width: {}%; height: {}%",
+                                                            x_percent, y_percent, width_percent, height_percent
+                                                        )}
+                                                        title={format!("#{} | MSE: {:.4}", i+1, m.mse)}
+                                                        data-match-id={i.to_string()}
+                                                    />
+                                                }
+                                            }).collect::<Html>()
+                                        }
+                                    </div>
+                                    <ol class="matches-list">
+                                        {
+                                            result.get_matches().iter().enumerate().map(|(i, m)| {
+                                                html! {
+                                                    <li class="match-item" data-match-id={i.to_string()}>
+                                                        {format!("Match at ({}, {}) - MSE: {:.4}%", m.x, m.y, m.mse*100.0)}
+                                                    </li>
+                                                }
+                                            }).collect::<Html>()
+                                        }
+                                    </ol>
                                 </div>
                             }
                         } else {
