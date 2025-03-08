@@ -269,8 +269,8 @@ type TSE = u64;
 
 fn process_images(main_image: ImageData, search_image: ImageData) -> String {
     let square_errors_divisor = search_image.width * search_image.height * 4;
+    // y comes first because of memory locality
     for y in 0..(main_image.height - search_image.height) {
-    
         log::info!("Checking line {}", y);
         for x in 0..(main_image.width - search_image.width) {            
             let mut sse: TSE = 0;
