@@ -5,14 +5,8 @@ use wasm_bindgen::JsCast;
 use log::Level;
 use console_log;
 use wasm_bindgen_futures::spawn_local;
-use std::rc::Rc;
-
-
-struct ImageData {
-    width: u32,
-    height: u32,
-    pixels: Vec<u8>, // RGBA pixel data
-}
+mod image;
+use image::ImageData;
 
 // Main application state
 #[derive(Default)]
@@ -250,47 +244,10 @@ async fn load_images_for_processing() -> Result<(ImageData, ImageData), String> 
 // Load a single image and extract its pixel data
 
 async fn load_image_data(image_id: &str) -> Result<ImageData, String> {
-    let document = web_sys::window().unwrap().document().unwrap();
-    let image: web_sys::HtmlImageElement = document.get_element_by_id(image_id).unwrap().dyn_into().unwrap();
-    let canvas: web_sys::HtmlCanvasElement = document.create_element("canvas").map_err(|e| format!("error creating canvas: {:?}", e))?.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-    let ctx: web_sys::CanvasRenderingContext2d = canvas.get_context("2d").map_err(|e| format!("error getting 2d context: {:?}", e))?.unwrap().dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap();
-
-    let width = image.natural_width();
-    let height = image.natural_height();
-
-    // Set canvas size to match image
-    canvas.set_width(width);
-    canvas.set_height(height);
-
-    ctx.draw_image_with_html_image_element(&image, 0.0, 0.0).unwrap();
-
-    //Ok(ctx)
-    let image_data = ctx.get_image_data(0.0, 0.0, width.into(), height.into()).unwrap();
-    //log::info!("image data ({}): {:?}", image_data.data().len(), image_data.data());
-    Ok(ImageData {
-        width,
-        height,
-        pixels: image_data.data().to_vec(),
-    })
+    let image: web_sys::HtmlImageElement = web_sys::window().unwrap().document().unwrap().get_element_by_id(image_id).unwrap().dyn_into().unwrap();
+    ImageData::from_image(&image)
 }
 
-
-fn get_pixel(image: &ImageData, x: u32, y: u32) -> &[u8] {
-    let index = (y * image.width + x) as usize * 4;
-    let data: &[u8] = &image.pixels;
-    &data[index..index+4]
-}
-fn get_pixels(image: &ImageData, x: u32, y: u32, count: usize) -> &[u8] {
-    let index = (y * image.width + x) as usize * 4;
-    &image.pixels[index..index + 4 * count]
-}
-
-/*
-subpixel: 8b
-square error: 16b
-resolution like 1920x1080 needs additional 21b, i.e., 37b in total, so u32 is not enough
-*/
-type TSE = u64;
 
 async fn yield_now() {
     // We will create a Promise that resolves after a short delay to allow the browser to update the UI
@@ -322,25 +279,7 @@ async fn process_images<F>(main_image: ImageData, search_image: ImageData, progr
 
         log::info!("Checking line {}", y);
         for x in 0..(main_image.width - search_image.width) {            
-            let mut sse: TSE = 0;
-            for dy in 0..search_image.height {
-                /*for dx in 0..search_image.width {
-                    let main_pixel = get_pixel(&main_image, x + dx, y + dy);
-                    let search_pixel = get_pixel(&search_image, dx, dy);
-                    let square_errors: TSE = main_pixel.iter().zip(search_pixel).map(|(m, s)|
-                        ((m-s) as i32).pow(2) as TSE
-                    ).sum();
-                    //log::info!("Square errors for {:?} and {:?}: {}", main_pixel, search_pixel,  square_errors);
-                    sse += square_errors;
-                }*/
-                let main_pixels = get_pixels(&main_image, x, y + dy, search_image.width as usize);
-                let search_pixels = get_pixels(&search_image, 0, dy, search_image.width as usize);
-                let square_errors: TSE = main_pixels.iter().zip(search_pixels).map(|(m, s)|
-                    ((m-s) as i32).pow(2) as TSE
-                ).sum();
-                sse += square_errors;
-            }
-            
+            let sse = main_image.total_square_error(&search_image, x, y);
             let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
             if mse < 0.01 {
                 log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
