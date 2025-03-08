@@ -3,7 +3,6 @@ use crate::drag_drop::setup_drag_blocking_handlers;
 use crate::drag_drop::setup_drag_handlers;
 
 use wasm_bindgen::JsCast;
-use wasm_bindgen::prelude::*;
 use web_sys::{DragEvent, Event, HtmlElement};
 use web_sys::{FileList, HtmlInputElement};
 use yew::prelude::*;
@@ -60,23 +59,7 @@ pub fn image_input(props: &ImageInputProps) -> Html {
         Callback::from(move |event: DragEvent| {
             prevent_default(&event);
             if let Some(files) = event.data_transfer().and_then(|x| x.files()) {
-                if let Some(file) = files.get(0) {
-                    let file_reader = web_sys::FileReader::new().unwrap();
-
-                    let on_upload = on_upload.clone();
-                    let onload = Closure::wrap(Box::new(move |e: Event| {
-                        let target: web_sys::FileReader = e.target().unwrap().dyn_into().unwrap();
-                        if let Ok(result) = target.result() {
-                            if let Some(data_url) = result.as_string() {
-                                on_upload.emit(files.clone());
-                            }
-                        }
-                    }) as Box<dyn FnMut(_)>);
-
-                    file_reader.set_onload(Some(onload.as_ref().unchecked_ref()));
-                    file_reader.read_as_data_url(&file).unwrap();
-                    onload.forget();
-                }
+                on_upload.emit(files.clone());
             }
         })
     };
