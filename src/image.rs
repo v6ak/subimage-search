@@ -27,11 +27,6 @@ type TSE = u64;
 
 
 impl ImageData {
-    pub fn get_pixel(&self, x: u32, y: u32) -> &[u8] {
-        let index = (y * self.width + x) as usize * 4;
-        let data: &[u8] = &self.pixels;
-        &data[index..index+4]
-    }
     pub fn get_pixels(&self, x: u32, y: u32, count: usize) -> &[u8] {
         let index = (y * self.width + x) as usize * 4;
         &self.pixels[index..index + 4 * count]
@@ -60,15 +55,6 @@ impl ImageData {
     pub fn total_square_error(&self, search_image: &ImageData, x: u32, y: u32) -> TSE {
         let mut tse: TSE = 0;
         for dy in 0..search_image.height {
-            /*for dx in 0..search_image.width {
-                let main_pixel = get_pixel(&main_image, x + dx, y + dy);
-                let search_pixel = get_pixel(&search_image, dx, dy);
-                let square_errors: TSE = main_pixel.iter().zip(search_pixel).map(|(m, s)|
-                    ((m-s) as i32).pow(2) as TSE
-                ).sum();
-                //log::info!("Square errors for {:?} and {:?}: {}", main_pixel, search_pixel,  square_errors);
-                sse += square_errors;
-            }*/
             let main_pixels = self.get_pixels(x, y + dy, search_image.width as usize);
             let search_pixels = search_image.get_pixels(0, dy, search_image.width as usize);
             let square_errors: TSE = main_pixels.iter().zip(search_pixels).map(|(m, s)|
