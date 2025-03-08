@@ -3,8 +3,10 @@ use log::Level;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
+use web_sys::FileList;
 use web_sys::{FileReader, HtmlInputElement};
 use yew::prelude::*;
+mod drag_drop;
 mod image;
 mod image_input;
 use image::{ImageData, SearchResults};
@@ -124,9 +126,6 @@ impl Component for SubimageSearch {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let main_onchange = self.handle_file_upload(ctx, Msg::MainImageLoaded);
-        let search_onchange = self.handle_file_upload(ctx, Msg::SearchImageLoaded);
-
         // Determine if the Process button should be enabled
         let both_images_loaded = self.main_image.is_some() && self.search_image.is_some();
         let process_button_class = if both_images_loaded && !self.processing {
@@ -168,7 +167,7 @@ impl Component for SubimageSearch {
                                         label="Main Image"
                                         input_id="mainImageInput"
                                         preview_id="mainImagePreview"
-                                        onchange={main_onchange}
+                                        on_upload={self.handle_file_upload(ctx, Msg::MainImageLoaded)}
                                         image={self.main_image.clone()}
                                         help={None}
                                     />
@@ -176,7 +175,7 @@ impl Component for SubimageSearch {
                                         label="Image to search"
                                         input_id="searchImageInput"
                                         preview_id="searchImagePreview"
-                                        onchange={search_onchange}
+                                        on_upload={self.handle_file_upload(ctx, Msg::SearchImageLoaded)}
                                         image={self.search_image.clone()}
                                         help={Some(image_search_help())}
                                     />
@@ -373,30 +372,25 @@ impl SubimageSearch {
         &self,
         ctx: &Context<Self>,
         msg_creator: fn(String) -> Msg,
-    ) -> Callback<Event> {
+    ) -> Callback<FileList> {
         let link = ctx.link().clone();
 
-        Callback::from(move |e: Event| {
-            let target = e.target().unwrap();
-            let input: HtmlInputElement = target.dyn_into().unwrap();
+        Callback::from(move |file_list: FileList| {
+            if let Some(file) = file_list.get(0) {
+                let file_reader = FileReader::new().unwrap();
+                let fr_clone = file_reader.clone();
+                let link_clone = link.clone();
 
-            if let Some(file_list) = input.files() {
-                if let Some(file) = file_list.get(0) {
-                    let file_reader = FileReader::new().unwrap();
-                    let fr_clone = file_reader.clone();
-                    let link_clone = link.clone();
+                let onload_closure = Closure::wrap(Box::new(move |_: Event| {
+                    let result = fr_clone.result().unwrap();
+                    if let Some(data_url) = result.as_string() {
+                        link_clone.send_message(msg_creator(data_url));
+                    }
+                }) as Box<dyn FnMut(_)>);
 
-                    let onload_closure = Closure::wrap(Box::new(move |_: Event| {
-                        let result = fr_clone.result().unwrap();
-                        if let Some(data_url) = result.as_string() {
-                            link_clone.send_message(msg_creator(data_url));
-                        }
-                    }) as Box<dyn FnMut(_)>);
-
-                    file_reader.set_onload(Some(onload_closure.as_ref().unchecked_ref()));
-                    file_reader.read_as_data_url(&file).unwrap();
-                    onload_closure.forget();
-                }
+                file_reader.set_onload(Some(onload_closure.as_ref().unchecked_ref()));
+                file_reader.read_as_data_url(&file).unwrap();
+                onload_closure.forget();
             }
         })
     }

@@ -21,6 +21,10 @@ body {
     &:hover {
       background-color: #f5f5f5;
     }
+    &.dragover {
+      border-color: #4CAF50;
+      background-color: rgba(76, 175, 80, 0.1);
+    }
     &#mainImageInput-container {
       min-width: 50%;
     }
