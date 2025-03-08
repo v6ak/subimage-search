@@ -1,4 +1,3 @@
-use console_log;
 use gloo::utils::{document, window};
 use log::Level;
 use wasm_bindgen::JsCast;
@@ -276,13 +275,12 @@ impl Component for SubimageSearch {
                                     <div class="result-message">
                                         <h3>{if result.has_overflown() {
                                             format!("Found many matches, showing {} most relevant", result.get_matches().len())
+                                        } else if result.get_matches().is_empty() {
+                                            "No matches found".to_string()
                                         } else {
-                                            if result.get_matches().is_empty() {
-                                                "No matches found".to_string()
-                                            } else {
-                                                format!("Found {} matches", result.get_matches().len())
-                                            }
-                                        }}</h3>
+                                            format!("Found {} matches", result.get_matches().len())
+                                        }
+                                        }</h3>
                                     </div>
                                     <div class="main-image-container">
                                         <img
@@ -292,10 +290,10 @@ impl Component for SubimageSearch {
                                         />
                                         {
                                             result.get_matches().iter().enumerate().map(|(i, m)| {
-                                                let x_percent = (m.x as f64 / result.get_main_width() as f64 * 100.0) as f64;
-                                                let y_percent = (m.y as f64 / result.get_main_height() as f64 * 100.0) as f64;
-                                                let width_percent = (result.get_template_width() as f64 / result.get_main_width() as f64 * 100.0) as f64;
-                                                let height_percent = (result.get_template_height() as f64 / result.get_main_height() as f64 * 100.0) as f64;
+                                                let x_percent = m.x as f64 / result.get_main_width() as f64 * 100.0;
+                                                let y_percent = m.y as f64 / result.get_main_height() as f64 * 100.0;
+                                                let width_percent = result.get_template_width() as f64 / result.get_main_width() as f64 * 100.0;
+                                                let height_percent = result.get_template_height() as f64 / result.get_main_height() as f64 * 100.0;
 
                                                 html! {
                                                     <div
