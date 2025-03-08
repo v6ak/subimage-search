@@ -4,13 +4,22 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::FileList;
-use web_sys::{FileReader, HtmlInputElement};
+use web_sys::FileReader;
 use yew::prelude::*;
 mod drag_drop;
 mod image;
 mod image_input;
 use image::{ImageData, SearchResults};
-use image_input::ImageInput;
+
+mod components {
+    pub mod search_params;
+    pub mod search_results;
+    pub mod search_summary;
+}
+
+use components::search_params::SearchParams;
+use components::search_results::SearchError;
+use components::search_summary::SearchSummary;
 
 // Main application state
 #[derive(Default)]
@@ -137,20 +146,6 @@ impl Component for SubimageSearch {
         // Handle Process button click
         let on_process = ctx.link().callback(|_| Msg::ProcessImages);
 
-        // Handle max_mse input change
-        let on_max_mse_change = ctx.link().callback(|e: InputEvent| {
-            let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
-            let value = value_str.parse::<f64>().unwrap(); // safe, because input type is number
-            Msg::UpdateMaxMse(value)
-        });
-
-        // Handle max_results input change
-        let on_max_results_change = ctx.link().callback(|e: InputEvent| {
-            let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
-            let value = value_str.parse::<u16>().unwrap(); // safe, because input type is number
-            Msg::UpdateMaxResults(value)
-        });
-
         // Format progress percentage
         let progress_percent = (self.progress * 100.0) as u32;
 
@@ -161,69 +156,19 @@ impl Component for SubimageSearch {
                     if self.result.is_none() {
                         html! {
                             <>
-                                <h2>{"Images"}</h2>
-                                <div class="image-inputs">
-                                    <ImageInput
-                                        label="Main Image"
-                                        input_id="mainImageInput"
-                                        preview_id="mainImagePreview"
-                                        on_upload={self.handle_file_upload(ctx, Msg::MainImageLoaded)}
-                                        image={self.main_image.clone()}
-                                        help={None}
-                                        disabled={self.processing}
-                                    />
-                                    <ImageInput
-                                        label="Image to search"
-                                        input_id="searchImageInput"
-                                        preview_id="searchImagePreview"
-                                        on_upload={self.handle_file_upload(ctx, Msg::SearchImageLoaded)}
-                                        image={self.search_image.clone()}
-                                        help={Some(image_search_help())}
-                                        disabled={self.processing}
-                                    />
-                                </div>
 
-                                <h2>{"Settings"}</h2>
-                                <div class="settings">
-                                    <label class="settings-item">
-                                        <h3>{"Maximum difference (%)"}</h3>
-                                        <input
-                                            type="number"
-                                            id="maxMseInput"
-                                            value={(self.max_mse * 100.0).to_string()}
-                                            oninput={on_max_mse_change}
-                                            disabled={self.processing}
-                                            step="0.1"
-                                            min="0"
-                                            max="100"
-                                        />
-                                        <span class="unit">{"%"}</span>
-                                        <ul class="settings-hint">
-                                            <li><a href="https://en.wikipedia.org/wiki/Mean_squared_error" target="_blank">{"Mean squared error"}</a>{" threshold"}</li>
-                                            <li>{"0% - exact match"}</li>
-                                            <li>{"100% - any difference"}</li>
-                                            <li>{"Alpha channel is also considered as a color component."}</li>
-                                            <li>{"Low values usually cause faster search due to optimizations."}</li>
-                                        </ul>
-                                    </label>
-                                    <label class="settings-item">
-                                        <h3>{"Maximum number of results"}</h3>
-                                        <input
-                                            type="number"
-                                            id="maxResultsInput"
-                                            value={self.max_results.to_string()}
-                                            oninput={on_max_results_change}
-                                            disabled={self.processing}
-                                            step="1"
-                                            min="1"
-                                            max="100"
-                                        />
-                                        <ul class="settings-hint">
-                                            <li>{"Maximum number of search results to display"}</li>
-                                            <li>{"When there are more matches, the most relevant are shown."}</li>
-                                        </ul>
-                                    </label>
-                                </div>
+                                <SearchParams
+                                    max_mse={self.max_mse}
+                                    max_results={self.max_results}
+                                    main_image={self.main_image.clone()}
+                                    search_image={self.search_image.clone()}
+                                    disabled={self.processing}
+                                    on_max_mse_change={ctx.link().callback(Msg::UpdateMaxMse)}
+                                    on_max_results_change={ctx.link().callback(Msg::UpdateMaxResults)}
+                                    on_main_image_upload={self.handle_file_upload(ctx, Msg::MainImageLoaded)}
+                                    on_search_image_upload={self.handle_file_upload(ctx, Msg::SearchImageLoaded)}
+                                />
+
                                 <div class="action-section">
                                     <button
                                         class={process_button_class}
@@ -259,98 +204,83 @@ impl Component for SubimageSearch {
                             </>
                         }
                     } else {
-                        let on_edit = ctx.link().callback(|_| Msg::NewSearch);
                         html! {
-                            <div class="search-summary">
-                            <h2>{"Search summary"}</h2>
-                                <div class="search-info">
-                                    <div class="search-image-preview">
-                                        <h3>{"Searched subimage"}</h3>
-                                        <img
-                                            src={self.search_image.clone().unwrap_or_default()}
-                                            alt="Subimage that was searched"
-                                        />
-                                    </div>
-                                    <div class="settings-summary">
-                                        <h3>{"Search Settings"}</h3>
-                                        <span class="setting">{"Maximum difference: "}<strong>{format!("{:.1}%", self.max_mse * 100.0)}</strong></span>
-                                        <span class="setting">{"Maximum results: "}<strong>{self.max_results}</strong></span>
-                                    </div>
-                                    <button class="edit-button" onclick={on_edit}>{"New Search"}</button>
-                                </div>
-                            </div>
+                            <SearchSummary
+                                search_image={self.search_image.clone().unwrap_or_default()}
+                                max_mse={self.max_mse}
+                                max_results={self.max_results}
+                                on_new_search={ctx.link().callback(|_| Msg::NewSearch)}
+                            />
                         }
                     }
                 }
 
                 <div id="results">
                     {
-                        match &self.result {
-                            Some(Err(err)) => {
-                                html! {
-                                    <div class="result-container">
-                                        <h2>{"Error"}</h2>
-                                        <div class="error-message">
-                                            <h3>{"An error occurred during processing"}</h3>
-                                            <p>{err}</p>
-                                        </div>
-                                    </div>
-                                }
-                            },
-                            Some(Ok(result)) => html! {
-                                <div class="result-container">
-                                    <h2>{"Search results"}</h2>
-                                    <div class="result-message">
-                                        <h3>{if result.has_overflown() {
-                                            format!("Found many matches, showing {} most relevant", result.get_matches().len())
-                                        } else if result.get_matches().is_empty() {
-                                            "No matches found".to_string()
-                                        } else {
-                                            format!("Found {} matches", result.get_matches().len())
-                                        }
-                                        }</h3>
-                                    </div>
-                                    <div class="main-image-container">
-                                        <img
-                                            src={self.main_image.clone().unwrap_or_default()}
-                                            alt="Main image with matches"
-                                            class="result-main-image"
-                                        />
-                                        {
-                                            result.get_matches().iter().enumerate().map(|(i, m)| {
-                                                let x_percent = m.x as f64 / result.get_main_width() as f64 * 100.0;
-                                                let y_percent = m.y as f64 / result.get_main_height() as f64 * 100.0;
-                                                let width_percent = result.get_template_width() as f64 / result.get_main_width() as f64 * 100.0;
-                                                let height_percent = result.get_template_height() as f64 / result.get_main_height() as f64 * 100.0;
+                        if let Some(result) = &self.result {
+                            match result {
+                                Ok(search_results) => {
+                                    html! {
+                                        <div class="result-container">
+                                            <h2>{"Search results"}</h2>
+                                            <div class="result-message">
+                                                <h3>{if search_results.has_overflown() {
+                                                    format!("Found many matches, showing {} most relevant", search_results.get_matches().len())
+                                                } else if search_results.get_matches().is_empty() {
+                                                    "No matches found".to_string()
+                                                } else {
+                                                    format!("Found {} matches", search_results.get_matches().len())
+                                                }}</h3>
+                                            </div>
+                                            <div class="main-image-container">
+                                                <img
+                                                    src={self.main_image.clone().unwrap_or_default()}
+                                                    alt="Main image with matches"
+                                                    class="result-main-image"
+                                                />
+                                                {
+                                                    search_results.get_matches().iter().enumerate().map(|(i, m)| {
+                                                        let x_percent = m.x as f64 / search_results.get_main_width() as f64 * 100.0;
+                                                        let y_percent = m.y as f64 / search_results.get_main_height() as f64 * 100.0;
+                                                        let width_percent = search_results.get_template_width() as f64 / search_results.get_main_width() as f64 * 100.0;
+                                                        let height_percent = search_results.get_template_height() as f64 / search_results.get_main_height() as f64 * 100.0;
 
-                                                html! {
-                                                    <div
-                                                        class="match-overlay"
-                                                        style={format!(
-                                                            "left: {}%; top: {}%; width: {}%; height: {}%",
-                                                            x_percent, y_percent, width_percent, height_percent
-                                                        )}
-                                                        title={format!("#{} | MSE: {:.4}", i+1, m.mse)}
-                                                        data-match-id={i.to_string()}
-                                                    />
+                                                        html! {
+                                                            <div
+                                                                class="match-overlay"
+                                                                style={format!(
+                                                                    "left: {}%; top: {}%; width: {}%; height: {}%",
+                                                                    x_percent, y_percent, width_percent, height_percent
+                                                                )}
+                                                                title={format!("#{} | MSE: {:.4}", i+1, m.mse)}
+                                                                data-match-id={i.to_string()}
+                                                            />
+                                                        }
+                                                    }).collect::<Html>()
                                                 }
-                                            }).collect::<Html>()
-                                        }
-                                    </div>
-                                    <ol class="matches-list">
-                                        {
-                                            result.get_matches().iter().enumerate().map(|(i, m)| {
-                                                html! {
-                                                    <li class="match-item" data-match-id={i.to_string()}>
-                                                        {format!("Match at ({}, {}) - MSE: {:.4}%", m.x, m.y, m.mse*100.0)}
-                                                    </li>
+                                            </div>
+                                            <ol class="matches-list">
+                                                {
+                                                    search_results.get_matches().iter().enumerate().map(|(i, m)| {
+                                                        html! {
+                                                            <li class="match-item" data-match-id={i.to_string()}>
+                                                                {format!("Match at ({}, {}) - MSE: {:.4}%", m.x, m.y, m.mse*100.0)}
+                                                            </li>
+                                                        }
+                                                    }).collect::<Html>()
                                                 }
-                                            }).collect::<Html>()
-                                        }
-                                    </ol>
-                                </div>
-                            },
-                            None =>html! {}
+                                            </ol>
+                                        </div>
+                                    }
+                                }
+                                Err(error_message) => {
+                                    html! {
+                                        <SearchError message={error_message.clone()} />
+                                    }
+                                }
+                            }
+                        } else {
+                            html! {}
                         }
                     }
                 </div>
@@ -364,17 +294,6 @@ impl Component for SubimageSearch {
                 </footer>
             </div>
         }
-    }
-}
-
-fn image_search_help() -> Html {
-    html! {
-        <ul class="image-hint">
-            <li><strong>{"Orientation"}</strong>{" has to be the same as in main image."}</li>
-            <li><strong>{"Scale"}</strong>{" has to be the same as in main image."}</li>
-            <li><strong>{"Compression artifacts and blur caused by scaling up"}</strong>{" can be handled by increasing the maximum difference."}</li>
-            <li><strong>{"Alpha channel"}</strong>{" cannot be used as a wildcard. It is considered as a color component. If you don't know the consequences, you probably don't want to search an image with significant transparency."}</li>
-        </ul>
     }
 }
 
