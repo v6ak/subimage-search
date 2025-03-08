@@ -1,4 +1,4 @@
-use crate::image_input::ImageInput;
+use crate::components::image_input::ImageInput;
 use web_sys::{FileList, HtmlInputElement};
 use yew::prelude::*;
 

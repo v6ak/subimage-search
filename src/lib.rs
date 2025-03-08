@@ -8,10 +8,10 @@ use web_sys::FileReader;
 use yew::prelude::*;
 mod drag_drop;
 mod image;
-mod image_input;
 use image::{ImageData, SearchResults};
 
 mod components {
+    pub mod image_input;
     pub mod search_params;
     pub mod search_results;
     pub mod search_summary;
