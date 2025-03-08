@@ -21,6 +21,7 @@ struct SubimageSearch {
     search_image: Option<String>,
     processing: bool, // Track if processing is in progress
     result: Option<String>, // Store result message
+    progress: f32, // Track progress of image processing (0.0 to 1.0)
 }
 
 // Application messages
@@ -28,6 +29,7 @@ enum Msg {
     MainImageLoaded(String),
     SearchImageLoaded(String),
     ProcessImages,
+    UpdateProgress(f32),
     ProcessingComplete(Option<String>), // Result message from processing
 }
 
@@ -55,6 +57,7 @@ impl Component for SubimageSearch {
                 log::info!("Starting image processing...");
                 self.processing = true;
                 self.result = None;
+                self.progress = 0.0; // Reset progress
 
                 // Launch async image processing
                 let link = ctx.link().clone();
@@ -63,7 +66,9 @@ impl Component for SubimageSearch {
                         Ok((main_img_data, search_img_data)) => {
                             log::info!("Images loaded successfully");
                             // Images loaded successfully - now you can process them
-                            let result = process_images(main_img_data, search_img_data);
+                            let link_cloned = link.clone();
+                            let result = process_images(main_img_data, search_img_data, 
+                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress))).await;
                             link.send_message(Msg::ProcessingComplete(Some(result)));
                         }
                         Err(err) => {
@@ -75,9 +80,14 @@ impl Component for SubimageSearch {
 
                 true
             }
+            Msg::UpdateProgress(progress) => {
+                self.progress = progress;
+                true
+            }
             Msg::ProcessingComplete(result) => {
                 self.processing = false;
                 self.result = result;
+                self.progress = 1.0; // Ensure progress is complete
                 true
             }
         }
@@ -98,6 +108,9 @@ impl Component for SubimageSearch {
         // Handle Process button click
         let on_process = ctx.link().callback(|_| Msg::ProcessImages);
         
+        // Format progress percentage
+        let progress_percent = (self.progress * 100.0) as u32;
+
         html! {
             <div class="container">
                 <h1>{"Subimage Search"}</h1>
@@ -159,6 +172,19 @@ impl Component for SubimageSearch {
                             }
                         }
                     </button>
+
+                    {
+                        if self.processing {
+                            html! {
+                                <div class="progress-container">
+                                    <progress value={self.progress.to_string()} max="1"></progress>
+                                    <span class="progress-text">{format!("{}%", progress_percent)}</span>
+                                </div>
+                            }
+                        } else {
+                            html! {}
+                        }
+                    }
                 </div>
                 
                 <div id="results" class="results">
@@ -266,11 +292,34 @@ resolution like 1920x1080 needs additional 21b, i.e., 37b in total, so u32 is no
 */
 type TSE = u64;
 
+async fn yield_now() {
+    // We will create a Promise that resolves after a short delay to allow the browser to update the UI
+    let delay_promise = js_sys::Promise::new(&mut |resolve, _| {
+        web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(
+            &resolve,
+            0,
+        ).unwrap();
+    });
+    // We need to convert the Promise to Rust Future and await it
+    wasm_bindgen_futures::JsFuture::from(delay_promise).await.unwrap();
+}
 
-fn process_images(main_image: ImageData, search_image: ImageData) -> String {
+
+async fn process_images<F>(main_image: ImageData, search_image: ImageData, progress_callback: F) -> String
+    where F: Fn(f32) + 'static
+{
     let square_errors_divisor = search_image.width * search_image.height * 4;
+    let total_rows = main_image.height - search_image.height;
+
     // y comes first because of memory locality
     for y in 0..(main_image.height - search_image.height) {
+        // Update progress once per row
+        let progress = y as f32 / total_rows as f32;
+        progress_callback(progress);
+
+        // allow tasks threads to do some work
+        yield_now().await;
+
         log::info!("Checking line {}", y);
         for x in 0..(main_image.width - search_image.width) {            
             let mut sse: TSE = 0;
@@ -299,8 +348,11 @@ fn process_images(main_image: ImageData, search_image: ImageData) -> String {
             }
         }
     }
+    
+    progress_callback(1.0);
+
     "Images loaded for processing".to_string()
-}
+    }
 
 // Starting the Yew application
 #[wasm_bindgen(start)]
