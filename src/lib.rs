@@ -67,8 +67,11 @@ impl Component for SubimageSearch {
                             log::info!("Images loaded successfully");
                             // Images loaded successfully - now you can process them
                             let link_cloned = link.clone();
-                            let result = process_images(main_img_data, search_img_data, 
-                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress)), max_mse).await;
+                            let result = main_img_data.find_subimage(
+                                &search_img_data,
+                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress)),
+                                max_mse,
+                            ).await;
                             link.send_message(Msg::ProcessingComplete(Some(result)));
                         }
                         Err(err) => {
@@ -277,52 +280,6 @@ async fn load_images_for_processing() -> Result<(ImageData, ImageData), String> 
 async fn load_image_data(image_id: &str) -> Result<ImageData, String> {
     let image: web_sys::HtmlImageElement = web_sys::window().unwrap().document().unwrap().get_element_by_id(image_id).unwrap().dyn_into().unwrap();
     ImageData::from_image(&image)
-}
-
-
-async fn yield_now() {
-    // We will create a Promise that resolves after a short delay to allow the browser to update the UI
-    let delay_promise = js_sys::Promise::new(&mut |resolve, _| {
-        web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(
-            &resolve,
-            0,
-        ).unwrap();
-    });
-    // We need to convert the Promise to Rust Future and await it
-    wasm_bindgen_futures::JsFuture::from(delay_promise).await.unwrap();
-}
-
-
-async fn process_images<F>(main_image: ImageData, search_image: ImageData, progress_callback: F, max_mse: f64) -> String
-    where F: Fn(f32) + 'static
-{
-
-    let square_errors_divisor = search_image.width * search_image.height * 4;
-    let total_rows = main_image.height - search_image.height;
-
-    // y comes first because of memory locality
-    for y in 0..(main_image.height - search_image.height) {
-        // Update progress once per row
-        let progress = y as f32 / total_rows as f32;
-        progress_callback(progress);
-
-        // allow tasks threads to do some work
-        yield_now().await;
-
-        log::info!("Checking line {}", y);
-        for x in 0..(main_image.width - search_image.width) {            
-            let sse = main_image.total_square_error(&search_image, x, y);
-            let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
-            if mse < max_mse {
-                log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
-                log::info!("sum of square errors: {} / MSE: {}", sse, mse);
-            }
-        }
-    }
-    
-    progress_callback(1.0);
-
-    "Images loaded for processing".to_string()
 }
 
 // Starting the Yew application

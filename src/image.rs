@@ -1,5 +1,17 @@
 use wasm_bindgen::JsCast;
 
+async fn yield_now() {
+    // We will create a Promise that resolves after a short delay to allow the browser to update the UI
+    let delay_promise = js_sys::Promise::new(&mut |resolve, _| {
+        web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(
+            &resolve,
+            0,
+        ).unwrap();
+    });
+    // We need to convert the Promise to Rust Future and await it
+    wasm_bindgen_futures::JsFuture::from(delay_promise).await.unwrap();
+}
+
 pub struct ImageData {
     pub width: u32,
     pub height: u32,
@@ -65,6 +77,37 @@ impl ImageData {
             tse += square_errors;
         }
         tse
+    }
+
+    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64) -> String
+        where F: Fn(f32) + 'static
+    {
+        let square_errors_divisor = search_image.width * search_image.height * 4;
+        let total_rows = self.height - search_image.height;
+
+        // y comes first because of memory locality
+        for y in 0..(self.height - search_image.height) {
+            // Update progress once per row
+            let progress = y as f32 / total_rows as f32;
+            progress_callback(progress);
+
+            // allow tasks threads to do some work
+            yield_now().await;
+
+            log::info!("Checking line {}", y);
+            for x in 0..(self.width - search_image.width) {
+                let sse = self.total_square_error(&search_image, x, y);
+                let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
+                if mse < max_mse {
+                    log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
+                    log::info!("sum of square errors: {} / MSE: {}", sse, mse);
+                }
+            }
+        }
+
+        progress_callback(1.0);
+
+        "Images loaded for processing".to_string()
     }
 
 }
