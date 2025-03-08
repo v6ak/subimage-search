@@ -73,9 +73,10 @@ impl ImageData {
         tse
     }
 
-    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64) -> String
+    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64) -> SearchResults
         where F: Fn(f32) + 'static
     {
+        let mut results = SearchResults::new(100);
         let square_errors_divisor = search_image.width * search_image.height * 4;
         let max_tse = ((max_mse as TSEF) * (square_errors_divisor as TSEF) * 65536.0).ceil() as TSE;
         let total_rows = self.height - search_image.height;
@@ -96,15 +97,76 @@ impl ImageData {
                 let sse = self.total_square_error(&search_image, x, y, max_tse);
                 let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
                 if mse < max_mse {
+                    results.push(SearchResult { x, y, mse });
                     log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
-                    log::info!("sum of square errors: {} / MSE: {}", sse, mse);
                 }
             }
         }
 
         progress_callback(1.0);
 
-        "Images loaded for processing".to_string()
+        results.finalize()
     }
 
+}
+
+#[derive(Debug)]
+pub struct SearchResult {
+    pub x: u32,
+    pub y: u32,
+    pub mse: f64,
+}
+
+#[derive(Debug)]
+pub struct SearchResults {
+    // We expect about 100 items max => inserting in the first position causes move of cca 1 600 bytes.
+    // Not sure if it more or less than allocation overhead caused by tree structures etc, but it is acceptable.
+    // Ordered by mse ascending. Not sure if ascending or descending order is better.
+    results_ordered: Vec<SearchResult>,
+    capacity: u16,
+    overflown: bool,
+}
+
+impl SearchResults {
+    pub fn new(capacity: u16) -> SearchResults {
+        SearchResults {
+            results_ordered: Vec::with_capacity(capacity as usize),
+            capacity,
+            overflown: false,
+        }
+    }
+    pub fn push(&mut self, result: SearchResult) {
+        if self.results_ordered.len() < self.capacity as usize {
+            self.insert_ordered(result);
+        } else {
+            self.overflown = true;
+            if result.mse < self.results_ordered[self.results_ordered.len() - 1].mse {
+                self.results_ordered.pop();
+                self.insert_ordered(result);
+            } else {
+                // not worth inserting
+            }
+        }
+        assert!(self.results_ordered.len() <= self.capacity as usize, "results_ordered.len() <= self.capacity");
+    }
+    fn insert_ordered(&mut self, result: SearchResult) {
+        // find element with higher mse
+        match self.results_ordered.iter().position(|r| r.mse > result.mse) {
+            Some(pos) => self.results_ordered.insert(pos, result),  // insert before the first element with higher mse
+            None => self.results_ordered.push(result),
+        }
+    }
+    pub fn has_overflown(&self) -> bool {
+        self.overflown
+    }
+    fn shrink(&mut self) {
+        self.results_ordered.shrink_to_fit();
+    }
+    fn finalize(mut self) -> Self {
+        self.shrink();
+        self
+    }
+    pub fn get_results(&self) -> &[SearchResult] {
+        &self.results_ordered
+    }
 }

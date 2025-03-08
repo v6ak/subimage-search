@@ -1,3 +1,4 @@
+use gloo::utils::window;
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 use web_sys::{FileReader, HtmlInputElement};
@@ -6,7 +7,7 @@ use log::Level;
 use console_log;
 use wasm_bindgen_futures::spawn_local;
 mod image;
-use image::ImageData;
+use image::{ImageData, SearchResults};
 
 // Main application state
 #[derive(Default)]
@@ -14,7 +15,7 @@ struct SubimageSearch {
     main_image: Option<String>,
     search_image: Option<String>,
     processing: bool, // Track if processing is in progress
-    result: Option<String>, // Store result message
+    result: Option<SearchResults>, // Store result message
     progress: f32, // Track progress of image processing (0.0 to 1.0)
     max_mse: f64, // Maximum mean squared error threshold
 }
@@ -25,7 +26,7 @@ enum Msg {
     SearchImageLoaded(String),
     ProcessImages,
     UpdateProgress(f32),
-    ProcessingComplete(Option<String>), // Result message from processing
+    ProcessingComplete(Option<SearchResults>), // Result message from processing
     UpdateMaxMse(f64),
 }
 
@@ -76,7 +77,8 @@ impl Component for SubimageSearch {
                         }
                         Err(err) => {
                             log::error!("Error loading images: {}", err);
-                            link.send_message(Msg::ProcessingComplete(Some(format!("Error: {}", err))));
+                            window().alert_with_message(&format!("Error loading images: {}", err)).unwrap();
+                            link.send_message(Msg::ProcessingComplete(None));
                         }
                     }
                 });
@@ -220,7 +222,7 @@ impl Component for SubimageSearch {
                         if let Some(result) = &self.result {
                             html! {
                                 <div class="result-message">
-                                    { result }
+                                    { format!("{:?}", result) }
                                 </div>
                             }
                         } else {
