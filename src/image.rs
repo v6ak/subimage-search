@@ -1,3 +1,4 @@
+use gloo::utils::document;
 use wasm_bindgen::JsCast;
 
 async fn yield_now() {
@@ -33,7 +34,7 @@ impl ImageData {
     }
 
     pub fn from_image(image: &web_sys::HtmlImageElement) -> Result<ImageData, String> {
-        let canvas: web_sys::HtmlCanvasElement = web_sys::window().unwrap().document().unwrap().create_element("canvas").map_err(|e| format!("error creating canvas: {:?}", e))?.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+        let canvas: web_sys::HtmlCanvasElement = document().create_element("canvas").map_err(|e| format!("error creating canvas: {:?}", e))?.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
         let ctx: web_sys::CanvasRenderingContext2d = canvas.get_context("2d").map_err(|e| format!("error getting 2d context: {:?}", e))?.unwrap().dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap();
 
         let width = image.natural_width();

@@ -1,4 +1,4 @@
-use gloo::utils::window;
+use gloo::utils::{document, window};
 use wasm_bindgen::prelude::*;
 use yew::prelude::*;
 use web_sys::{FileReader, HtmlInputElement};
@@ -376,7 +376,7 @@ async fn load_images_for_processing() -> Result<(ImageData, ImageData), String> 
 // Load a single image and extract its pixel data
 
 async fn load_image_data(image_id: &str) -> Result<ImageData, String> {
-    let image: web_sys::HtmlImageElement = web_sys::window().unwrap().document().unwrap().get_element_by_id(image_id).unwrap().dyn_into().unwrap();
+    let image: web_sys::HtmlImageElement = document().get_element_by_id(image_id).unwrap().dyn_into().unwrap();
     ImageData::from_image(&image)
 }
 
