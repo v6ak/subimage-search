@@ -30,6 +30,7 @@ enum Msg {
     ProcessingComplete(Option<SearchResults>), // Result message from processing
     UpdateMaxMse(f64),
     UpdateMaxResults(u16), // Message to update max_results
+    NewSearch,
 }
 
 impl Component for SubimageSearch {
@@ -108,6 +109,10 @@ impl Component for SubimageSearch {
                 self.max_results = new_max_results;
                 true
             }
+            Msg::NewSearch => {
+                self.result = None;
+                true
+            }
         }
     }
 
@@ -146,92 +151,122 @@ impl Component for SubimageSearch {
         html! {
             <div class="container">
                 <h1>{"Subimage Search"}</h1>
-                
-                <h2>{"Images"}</h2>
-                <div class="image-inputs">
-                    {image_input("Main Image", "mainImageInput", "mainImagePreview", main_onchange, &self.main_image, None)}
-                    {image_input("Image to search", "searchImageInput", "searchImagePreview", search_onchange, &self.search_image, Some(image_search_help()))}
-                </div>
-
-                <h2>{"Settings"}</h2>
-                <div class="settings">
-                    <label class="settings-item">
-                        <h3>{"Maximum difference (%)"}</h3>
-                        <input
-                            type="number"
-                            id="maxMseInput"
-                            value={(self.max_mse * 100.0).to_string()}
-                            oninput={on_max_mse_change}
-                            disabled={self.processing}
-                            step="0.1"
-                            min="0"
-                            max="100"
-                        />
-                        <span class="unit">{"%"}</span>
-                        <ul class="settings-hint">
-                            <li><a href="https://en.wikipedia.org/wiki/Mean_squared_error" target="_blank">{"Mean squared error"}</a>{" threshold"}</li>
-                            <li>{"0% - exact match"}</li>
-                            <li>{"100% - any difference"}</li>
-                            <li>{"Alpha channel is also considered as a color component."}</li>
-                            <li>{"Low values usually cause faster search due to optimizations."}</li>
-                        </ul>
-                    </label>
-                    <label class="settings-item">
-                        <h3>{"Maximum number of results"}</h3>
-                        <input
-                            type="number"
-                            id="maxResultsInput"
-                            value={self.max_results.to_string()}
-                            oninput={on_max_results_change}
-                            disabled={self.processing}
-                            step="1"
-                            min="1"
-                            max="100"
-                        />
-                        <ul class="settings-hint">
-                            <li>{"Maximum number of search results to display"}</li>
-                            <li>{"When there are more matches, the most relevant are shown."}</li>
-                        </ul>
-                    </label>
-                </div>
-
-                <div class="action-section">
-                    <button 
-                        class={process_button_class}
-                        onclick={on_process}
-                        disabled={!both_images_loaded || self.processing}
-                    >
-                        {
-                            if self.processing {
-                                "Searching..."
-                            } else {
-                                "Search subimage"
-                            }
-                        }
-                    </button>
-
-                    {
-                        if self.processing {
-                            html! {
-                                <div class="progress-container">
-                                    <progress value={self.progress.to_string()} max="1"></progress>
-                                    <span class="progress-text">{format!("{}%", progress_percent)}</span>
-                                    <div class="progress-hint">
-                                        {"Progress indicator might be sometimes inconsistent due to various optimizations that apply on some part of the image more than on others."}
-                                    </div>
+                {
+                    if self.result.is_none() {
+                        html! {
+                            <>
+                                <h2>{"Images"}</h2>
+                                <div class="image-inputs">
+                                    {image_input("Main Image", "mainImageInput", "mainImagePreview", main_onchange, &self.main_image, None)}
+                                    {image_input("Image to search", "searchImageInput", "searchImagePreview", search_onchange, &self.search_image, Some(image_search_help()))}
                                 </div>
-                            }
-                        } else {
-                            html! {}
+
+                                <h2>{"Settings"}</h2>
+                                <div class="settings">
+                                    <label class="settings-item">
+                                        <h3>{"Maximum difference (%)"}</h3>
+                                        <input
+                                            type="number"
+                                            id="maxMseInput"
+                                            value={(self.max_mse * 100.0).to_string()}
+                                            oninput={on_max_mse_change}
+                                            disabled={self.processing}
+                                            step="0.1"
+                                            min="0"
+                                            max="100"
+                                        />
+                                        <span class="unit">{"%"}</span>
+                                        <ul class="settings-hint">
+                                            <li><a href="https://en.wikipedia.org/wiki/Mean_squared_error" target="_blank">{"Mean squared error"}</a>{" threshold"}</li>
+                                            <li>{"0% - exact match"}</li>
+                                            <li>{"100% - any difference"}</li>
+                                            <li>{"Alpha channel is also considered as a color component."}</li>
+                                            <li>{"Low values usually cause faster search due to optimizations."}</li>
+                                        </ul>
+                                    </label>
+                                    <label class="settings-item">
+                                        <h3>{"Maximum number of results"}</h3>
+                                        <input
+                                            type="number"
+                                            id="maxResultsInput"
+                                            value={self.max_results.to_string()}
+                                            oninput={on_max_results_change}
+                                            disabled={self.processing}
+                                            step="1"
+                                            min="1"
+                                            max="100"
+                                        />
+                                        <ul class="settings-hint">
+                                            <li>{"Maximum number of search results to display"}</li>
+                                            <li>{"When there are more matches, the most relevant are shown."}</li>
+                                        </ul>
+                                    </label>
+                                </div>
+                                <div class="action-section">
+                                    <button
+                                        class={process_button_class}
+                                        onclick={on_process}
+                                        disabled={!both_images_loaded || self.processing}
+                                    >
+                                        {
+                                            if self.processing {
+                                                "Searching..."
+                                            } else {
+                                                "Search subimage"
+                                            }
+                                        }
+                                    </button>
+
+                                    {
+                                        if self.processing {
+                                            html! {
+                                                <div class="progress-container">
+                                                    <progress value={self.progress.to_string()} max="1"></progress>
+                                                    <span class="progress-text">{format!("{}%", progress_percent)}</span>
+                                                    <div class="progress-hint">
+                                                        {"Progress indicator might be sometimes inconsistent due to various optimizations that apply on some part of the image more than on others."}
+                                                    </div>
+                                                </div>
+                                            }
+                                        } else {
+                                            html! {}
+                                        }
+                                    }
+                                </div>
+
+                            </>
+                        }
+                    } else {
+                        let on_edit = ctx.link().callback(|_| Msg::NewSearch);
+                        html! {
+                            <div class="search-summary">
+                            <h2>{"Search summary"}</h2>
+                                <div class="search-info">
+                                    <div class="search-image-preview">
+                                        <h3>{"Searched subimage"}</h3>
+                                        <img
+                                            src={self.search_image.clone().unwrap_or_default()}
+                                            alt="Subimage that was searched"
+                                        />
+                                    </div>
+                                    <div class="settings-summary">
+                                        <h3>{"Search Settings"}</h3>
+                                        <span class="setting">{"Maximum difference: "}<strong>{format!("{:.1}%", self.max_mse * 100.0)}</strong></span>
+                                        <span class="setting">{"Maximum results: "}<strong>{self.max_results}</strong></span>
+                                    </div>
+                                    <button class="edit-button" onclick={on_edit}>{"New Search"}</button>
+                                </div>
+                            </div>
                         }
                     }
-                </div>
+                }
 
                 <div id="results">
                     {
                         if let Some(result) = &self.result {
                             html! {
                                 <div class="result-container">
+                                    <h2>{"Search results"}</h2>
                                     <div class="result-message">
                                         <h3>{if result.has_overflown() {
                                             format!("Found many matches, showing {} most relevant", result.get_matches().len())
