@@ -341,7 +341,7 @@ fn image_search_help() -> Html{
 
 fn image_input(label: &str, input_id: &str, preview_id: &str, onchange: Callback<Event>, image: &Option<String>, help: Option<Html>) -> Html {
     html! {
-        <label class="image-input">
+        <label class="image-input" id={format!("{}-container", input_id)}>
             <h3>{label}</h3>
             <input
                 type="file"
