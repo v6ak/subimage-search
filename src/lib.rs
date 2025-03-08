@@ -41,7 +41,7 @@ impl Component for SubimageSearch {
         log::info!("Subimage Search Application Initialized with Yew");
         Self {
             max_mse: 0.01,
-            max_results: 100,
+            max_results: 10,
             ..Self::default()
         }
     }
@@ -147,49 +147,54 @@ impl Component for SubimageSearch {
             <div class="container">
                 <h1>{"Subimage Search"}</h1>
                 
+                <h2>{"Images"}</h2>
                 <div class="image-inputs">
-                    <div>
-                        <h2>{"Main Image"}</h2>
-                        <input 
-                            type="file" 
-                            id="mainImageInput" 
-                            accept="image/*" 
-                            onchange={main_onchange}
-                        />
-                    </div>
-                    
-                    <div>
-                        <h2>{"Search Image"}</h2>
-                        <input 
-                            type="file" 
-                            id="searchImageInput" 
-                            accept="image/*" 
-                            onchange={search_onchange}
-                        />
-                    </div>
+                    {image_input("Main Image", "mainImageInput", "mainImagePreview", main_onchange, &self.main_image, None)}
+                    {image_input("Image to search", "searchImageInput", "searchImagePreview", search_onchange, &self.search_image, Some(image_search_help()))}
                 </div>
-                
-                <div class="image-preview">
-                    <div class="preview-container">
-                        <h3>{"Main Image Preview"}</h3>
-                        <img 
-                            id="mainImagePreview" 
-                            class="preview" 
-                            alt="Main image preview" 
-                            src={self.main_image.clone().unwrap_or_default()} 
+
+                <h2>{"Settings"}</h2>
+                <div class="settings">
+                    <label class="settings-item">
+                        <h3>{"Maximum difference (%)"}</h3>
+                        <input
+                            type="number"
+                            id="maxMseInput"
+                            value={(self.max_mse * 100.0).to_string()}
+                            oninput={on_max_mse_change}
+                            disabled={self.processing}
+                            step="0.1"
+                            min="0"
+                            max="100"
                         />
-                    </div>
-                    <div class="preview-container">
-                        <h3>{"Search Image Preview"}</h3>
-                        <img 
-                            id="searchImagePreview" 
-                            class="preview" 
-                            alt="Search image preview" 
-                            src={self.search_image.clone().unwrap_or_default()} 
+                        <span class="unit">{"%"}</span>
+                        <ul class="settings-hint">
+                            <li><a href="https://en.wikipedia.org/wiki/Mean_squared_error" target="_blank">{"Mean squared error"}</a>{" threshold"}</li>
+                            <li>{"0% - exact match"}</li>
+                            <li>{"100% - any difference"}</li>
+                            <li>{"Alpha channel is also considered as a color component."}</li>
+                            <li>{"Low values usually cause faster search due to optimizations."}</li>
+                        </ul>
+                    </label>
+                    <label class="settings-item">
+                        <h3>{"Maximum number of results"}</h3>
+                        <input
+                            type="number"
+                            id="maxResultsInput"
+                            value={self.max_results.to_string()}
+                            oninput={on_max_results_change}
+                            disabled={self.processing}
+                            step="1"
+                            min="1"
+                            max="100"
                         />
-                    </div>
+                        <ul class="settings-hint">
+                            <li>{"Maximum number of search results to display"}</li>
+                            <li>{"When there are more matches, the most relevant are shown."}</li>
+                        </ul>
+                    </label>
                 </div>
-                
+
                 <div class="action-section">
                     <button 
                         class={process_button_class}
@@ -198,9 +203,9 @@ impl Component for SubimageSearch {
                     >
                         {
                             if self.processing {
-                                "Processing..."
+                                "Searching..."
                             } else {
-                                "Process Images"
+                                "Search subimage"
                             }
                         }
                     </button>
@@ -211,6 +216,9 @@ impl Component for SubimageSearch {
                                 <div class="progress-container">
                                     <progress value={self.progress.to_string()} max="1"></progress>
                                     <span class="progress-text">{format!("{}%", progress_percent)}</span>
+                                    <div class="progress-hint">
+                                        {"Progress indicator might be sometimes inconsistent due to various optimizations that apply on some part of the image more than on others."}
+                                    </div>
                                 </div>
                             }
                         } else {
@@ -218,33 +226,8 @@ impl Component for SubimageSearch {
                         }
                     }
                 </div>
-                
-                <div class="settings">
-                    <label for="maxMseInput">{"Maximum difference measured by MSE (%):"}</label>
-                    <input
-                        type="number"
-                        id="maxMseInput"
-                        value={(self.max_mse * 100.0).to_string()}
-                        oninput={on_max_mse_change}
-                        disabled={self.processing}
-                        step="0.1"
-                        min="0"
-                        max="100"
-                    />
-                    <label for="maxResultsInput">{"Maximum number of results:"}</label>
-                    <input
-                        type="number"
-                        id="maxResultsInput"
-                        value={self.max_results.to_string()}
-                        oninput={on_max_results_change}
-                        disabled={self.processing}
-                        step="1"
-                        min="1"
-                        max="100"
-                    />
-                </div>
 
-                <div id="results" class="results">
+                <div id="results">
                     {
                         if let Some(result) = &self.result {
                             html! {
@@ -303,6 +286,48 @@ impl Component for SubimageSearch {
                 </div>
             </div>
         }
+    }
+}
+
+fn image_search_help() -> Html{
+     html! {
+        <ul class="image-hint">
+            <li><strong>{"Orientation"}</strong>{" has to be the same as in main image."}</li>
+            <li><strong>{"Scale"}</strong>{" has to be the same as in main image."}</li>
+            <li><strong>{"Compression artifacts and blur caused by scaling up"}</strong>{" can be handled by increasing the maximum difference."}</li>
+            <li><strong>{"Alpha channel"}</strong>{" cannot be used as a wildcard. It is considered as a color component. If you don't know the consequences, you probably don't want to search an image with significant transparency."}</li>
+        </ul>
+    }
+}
+
+fn image_input(label: &str, input_id: &str, preview_id: &str, onchange: Callback<Event>, image: &Option<String>, help: Option<Html>) -> Html {
+    html! {
+        <label class="image-input">
+            <h3>{label}</h3>
+            <input
+                type="file"
+                id={input_id.to_string()}
+                accept="image/*"
+                onchange={onchange}
+            />
+            {
+                if image.is_none() {
+                    html! {
+                        <p>{"Click here to select an image"}</p>
+                    }
+                }else {
+                    html! {
+                        <img
+                            id={preview_id.to_string()}
+                            class="preview"
+                            alt={format!("{} preview", label)}
+                            src={image.clone().unwrap_or_default()}
+                        />
+                    }
+                }
+            }
+            {help.unwrap_or_default()}
+        </label>
     }
 }
 
