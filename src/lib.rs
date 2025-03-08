@@ -271,7 +271,11 @@ impl Component for SubimageSearch {
                                         <h3>{if result.has_overflown() {
                                             format!("Found many matches, showing {} most relevant", result.get_matches().len())
                                         } else {
-                                            format!("Found {} matches", result.get_matches().len())
+                                            if result.get_matches().is_empty() {
+                                                "No matches found".to_string()
+                                            } else {
+                                                format!("Found {} matches", result.get_matches().len())
+                                            }
                                         }}</h3>
                                     </div>
                                     <div class="main-image-container">
