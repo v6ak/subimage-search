@@ -34,6 +34,23 @@ body {
     input {
       display: none;
     }
+    .upload-prompt {
+      text-align: center;
+      padding: 2em;
+
+      .upload-icon {
+        font-size: 2em;
+        color: #666;
+        margin-bottom: 0.5em;
+      }
+
+      p {
+        margin: 0;
+        color: #333;
+        font-size: 1.1em;
+      }
+
+    }
     .preview {
       max-width: 100%;
       max-height: 900%;

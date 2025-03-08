@@ -83,7 +83,10 @@ pub fn image_input(props: &ImageInputProps) -> Html {
             {
                 if props.image.is_none() {
                     html! {
-                        <p>{"Click or drag an image here"}</p>
+                        <div class="upload-prompt">
+                            <div class="upload-icon">{"+"}</div>
+                            <p>{"Click here or drag&drop image"}</p>
+                        </div>
                     }
                 } else {
                     html! {
