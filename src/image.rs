@@ -139,8 +139,8 @@ impl ImageData {
 
             log::info!("Checking line {}", y);
             for x in 0..(self.width - search_image.width) {
-                let sse = self.total_square_error(search_image, x, y, max_tse);
-                let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
+                let tse = self.total_square_error(search_image, x, y, max_tse);
+                let mse: f64 = (tse as f64) / (square_errors_divisor as f64) / (65536.0);
                 if mse < max_mse {
                     results.push(SearchResult { x, y, mse });
                     log::info!(
