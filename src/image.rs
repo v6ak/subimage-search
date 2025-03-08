@@ -24,7 +24,7 @@ square error: 16b
 resolution like 1920x1080 needs additional 21b, i.e., 37b in total, so u32 is not enough
 */
 type TSE = u64;
-
+type TSEF = f64; // less presice than TSE, but 53 bits of significand should be enough; f128 is not stable yet
 
 impl ImageData {
     pub fn get_pixels(&self, x: u32, y: u32, count: usize) -> &[u8] {
@@ -52,7 +52,12 @@ impl ImageData {
         })    
     }
 
-    pub fn total_square_error(&self, search_image: &ImageData, x: u32, y: u32) -> TSE {
+    /**
+     * Calculate the total square error between the main image and a search image
+     * starting at the given coordinates.
+     * max_tse is just a hint, the function may return higher value when max_tse is exceeded.
+     */
+    pub fn total_square_error(&self, search_image: &ImageData, x: u32, y: u32, max_tse: TSE) -> TSE {
         let mut tse: TSE = 0;
         for dy in 0..search_image.height {
             let main_pixels = self.get_pixels(x, y + dy, search_image.width as usize);
@@ -61,6 +66,9 @@ impl ImageData {
                 ((m-s) as i32).pow(2) as TSE
             ).sum();
             tse += square_errors;
+            if tse > max_tse {
+                return tse;
+            }
         }
         tse
     }
@@ -69,7 +77,10 @@ impl ImageData {
         where F: Fn(f32) + 'static
     {
         let square_errors_divisor = search_image.width * search_image.height * 4;
+        let max_tse = ((max_mse as TSEF) * (square_errors_divisor as TSEF) * 65536.0).ceil() as TSE;
         let total_rows = self.height - search_image.height;
+        log::info!("max_tse: {}", max_tse);
+        log::info!("MSE for max_tse: {}", (max_tse as f64) / (square_errors_divisor as f64) / 65536.0);
 
         // y comes first because of memory locality
         for y in 0..(self.height - search_image.height) {
@@ -82,7 +93,7 @@ impl ImageData {
 
             log::info!("Checking line {}", y);
             for x in 0..(self.width - search_image.width) {
-                let sse = self.total_square_error(&search_image, x, y);
+                let sse = self.total_square_error(&search_image, x, y, max_tse);
                 let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
                 if mse < max_mse {
                     log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
