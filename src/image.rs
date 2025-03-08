@@ -66,6 +66,8 @@ impl ImageData {
                 ((m-s) as i32).pow(2) as TSE
             ).sum();
             tse += square_errors;
+
+            // We might do this in the inner cycle. It would be more precise, but with more overhead. Not sure which is better.
             if tse > max_tse {
                 return tse;
             }
