@@ -327,6 +327,14 @@ impl Component for SubimageSearch {
                         }
                     }
                 </div>
+
+                <footer class="footer">
+                    <p>{"Source code available on "}
+                        <a href="https://github.com/v6ak/subimage-search" target="_blank">
+                            {"GitHub"}
+                        </a>
+                    </p>
+                </footer>
             </div>
         }
     }
