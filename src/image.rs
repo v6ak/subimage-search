@@ -1,16 +1,17 @@
-use gloo::utils::document;
+use gloo::utils::{document, window};
 use wasm_bindgen::JsCast;
 
 async fn yield_now() {
     // We will create a Promise that resolves after a short delay to allow the browser to update the UI
     let delay_promise = js_sys::Promise::new(&mut |resolve, _| {
-        web_sys::window().unwrap().set_timeout_with_callback_and_timeout_and_arguments_0(
-            &resolve,
-            0,
-        ).unwrap();
+        window()
+            .set_timeout_with_callback_and_timeout_and_arguments_0(&resolve, 0)
+            .unwrap();
     });
     // We need to convert the Promise to Rust Future and await it
-    wasm_bindgen_futures::JsFuture::from(delay_promise).await.unwrap();
+    wasm_bindgen_futures::JsFuture::from(delay_promise)
+        .await
+        .unwrap();
 }
 
 pub struct ImageData {
@@ -34,23 +35,37 @@ impl ImageData {
     }
 
     pub fn from_image(image: &web_sys::HtmlImageElement) -> Result<ImageData, String> {
-        let canvas: web_sys::HtmlCanvasElement = document().create_element("canvas").map_err(|e| format!("error creating canvas: {:?}", e))?.dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-        let ctx: web_sys::CanvasRenderingContext2d = canvas.get_context("2d").map_err(|e| format!("error getting 2d context: {:?}", e))?.unwrap().dyn_into::<web_sys::CanvasRenderingContext2d>().unwrap();
+        let canvas: web_sys::HtmlCanvasElement = document()
+            .create_element("canvas")
+            .map_err(|e| format!("error creating canvas: {:?}", e))?
+            .dyn_into::<web_sys::HtmlCanvasElement>()
+            .unwrap();
+        let ctx: web_sys::CanvasRenderingContext2d = canvas
+            .get_context("2d")
+            .map_err(|e| format!("error getting 2d context: {:?}", e))?
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
 
         let width = image.natural_width();
         let height = image.natural_height();
-    
+
         // Set canvas size to match image
         canvas.set_width(width);
         canvas.set_height(height);
-    
-        ctx.draw_image_with_html_image_element(&image, 0.0, 0.0).unwrap();
+
+        ctx.draw_image_with_html_image_element(&image, 0.0, 0.0)
+            .unwrap();
 
         Ok(ImageData {
             width,
             height,
-            pixels: ctx.get_image_data(0.0, 0.0, width.into(), height.into()).unwrap().data().to_vec(),
-        })    
+            pixels: ctx
+                .get_image_data(0.0, 0.0, width.into(), height.into())
+                .unwrap()
+                .data()
+                .to_vec(),
+        })
     }
 
     /**
@@ -58,14 +73,22 @@ impl ImageData {
      * starting at the given coordinates.
      * max_tse is just a hint, the function may return higher value when max_tse is exceeded.
      */
-    pub fn total_square_error(&self, search_image: &ImageData, x: u32, y: u32, max_tse: TSE) -> TSE {
+    pub fn total_square_error(
+        &self,
+        search_image: &ImageData,
+        x: u32,
+        y: u32,
+        max_tse: TSE,
+    ) -> TSE {
         let mut tse: TSE = 0;
         for dy in 0..search_image.height {
             let main_pixels = self.get_pixels(x, y + dy, search_image.width as usize);
             let search_pixels = search_image.get_pixels(0, dy, search_image.width as usize);
-            let square_errors: TSE = main_pixels.iter().zip(search_pixels).map(|(m, s)|
-                ((m-s) as i32).pow(2) as TSE
-            ).sum();
+            let square_errors: TSE = main_pixels
+                .iter()
+                .zip(search_pixels)
+                .map(|(m, s)| ((m - s) as i32).pow(2) as TSE)
+                .sum();
             tse += square_errors;
 
             // We might do this in the inner cycle. It would be more precise, but with more overhead. Not sure which is better.
@@ -76,15 +99,31 @@ impl ImageData {
         tse
     }
 
-    pub async fn find_subimage<F>(self: &ImageData, search_image: &ImageData, progress_callback: F, max_mse: f64, max_results: u16) -> SearchResults
-        where F: Fn(f32) + 'static
+    pub async fn find_subimage<F>(
+        self: &ImageData,
+        search_image: &ImageData,
+        progress_callback: F,
+        max_mse: f64,
+        max_results: u16,
+    ) -> SearchResults
+    where
+        F: Fn(f32) + 'static,
     {
-        let mut results = SearchResults::new(max_results, search_image.width, search_image.height, self.width, self.height);
+        let mut results = SearchResults::new(
+            max_results,
+            search_image.width,
+            search_image.height,
+            self.width,
+            self.height,
+        );
         let square_errors_divisor = search_image.width * search_image.height * 4;
         let max_tse = ((max_mse as TSEF) * (square_errors_divisor as TSEF) * 65536.0).ceil() as TSE;
         let total_rows = self.height - search_image.height;
         log::info!("max_tse: {}", max_tse);
-        log::info!("MSE for max_tse: {}", (max_tse as f64) / (square_errors_divisor as f64) / 65536.0);
+        log::info!(
+            "MSE for max_tse: {}",
+            (max_tse as f64) / (square_errors_divisor as f64) / 65536.0
+        );
 
         // y comes first because of memory locality
         for y in 0..(self.height - search_image.height) {
@@ -101,7 +140,12 @@ impl ImageData {
                 let mse: f64 = (sse as f64) / (square_errors_divisor as f64) / (65536.0);
                 if mse < max_mse {
                     results.push(SearchResult { x, y, mse });
-                    log::info!("pos ({}, {}) ({} pxs)", x, y, search_image.width * search_image.height);
+                    log::info!(
+                        "pos ({}, {}) ({} pxs)",
+                        x,
+                        y,
+                        search_image.width * search_image.height
+                    );
                 }
             }
         }
@@ -110,7 +154,6 @@ impl ImageData {
 
         results.finalize()
     }
-
 }
 
 #[derive(Debug)]
@@ -135,7 +178,13 @@ pub struct SearchResults {
 }
 
 impl SearchResults {
-    pub fn new(capacity: u16, template_width: u32, template_height: u32, main_width: u32, main_height: u32) -> SearchResults {
+    pub fn new(
+        capacity: u16,
+        template_width: u32,
+        template_height: u32,
+        main_width: u32,
+        main_height: u32,
+    ) -> SearchResults {
         SearchResults {
             results_ordered: Vec::with_capacity(capacity as usize),
             capacity,
@@ -158,12 +207,15 @@ impl SearchResults {
                 // not worth inserting
             }
         }
-        assert!(self.results_ordered.len() <= self.capacity as usize, "results_ordered.len() <= self.capacity");
+        assert!(
+            self.results_ordered.len() <= self.capacity as usize,
+            "results_ordered.len() <= self.capacity"
+        );
     }
     fn insert_ordered(&mut self, result: SearchResult) {
         // find element with higher mse
         match self.results_ordered.iter().position(|r| r.mse > result.mse) {
-            Some(pos) => self.results_ordered.insert(pos, result),  // insert before the first element with higher mse
+            Some(pos) => self.results_ordered.insert(pos, result), // insert before the first element with higher mse
             None => self.results_ordered.push(result),
         }
     }

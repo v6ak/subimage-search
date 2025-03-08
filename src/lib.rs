@@ -1,11 +1,11 @@
-use gloo::utils::{document, window};
-use wasm_bindgen::prelude::*;
-use yew::prelude::*;
-use web_sys::{FileReader, HtmlInputElement};
-use wasm_bindgen::JsCast;
-use log::Level;
 use console_log;
+use gloo::utils::{document, window};
+use log::Level;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
+use web_sys::{FileReader, HtmlInputElement};
+use yew::prelude::*;
 mod image;
 use image::{ImageData, SearchResults};
 
@@ -14,11 +14,11 @@ use image::{ImageData, SearchResults};
 struct SubimageSearch {
     main_image: Option<String>,
     search_image: Option<String>,
-    processing: bool, // Track if processing is in progress
+    processing: bool,              // Track if processing is in progress
     result: Option<SearchResults>, // Store result message
-    progress: f32, // Track progress of image processing (0.0 to 1.0)
-    max_mse: f64, // Maximum mean squared error threshold
-    max_results: u16, // Maximum number of search results
+    progress: f32,                 // Track progress of image processing (0.0 to 1.0)
+    max_mse: f64,                  // Maximum mean squared error threshold
+    max_results: u16,              // Maximum number of search results
 }
 
 // Application messages
@@ -73,17 +73,23 @@ impl Component for SubimageSearch {
                             log::info!("Images loaded successfully");
                             // Images loaded successfully - now you can process them
                             let link_cloned = link.clone();
-                            let result = main_img_data.find_subimage(
-                                &search_img_data,
-                                move |progress| link_cloned.send_message(Msg::UpdateProgress(progress)),
-                                max_mse,
-                                max_results,
-                            ).await;
+                            let result = main_img_data
+                                .find_subimage(
+                                    &search_img_data,
+                                    move |progress| {
+                                        link_cloned.send_message(Msg::UpdateProgress(progress))
+                                    },
+                                    max_mse,
+                                    max_results,
+                                )
+                                .await;
                             link.send_message(Msg::ProcessingComplete(Some(result)));
                         }
                         Err(err) => {
                             log::error!("Error loading images: {}", err);
-                            window().alert_with_message(&format!("Error loading images: {}", err)).unwrap();
+                            window()
+                                .alert_with_message(&format!("Error loading images: {}", err))
+                                .unwrap();
                             link.send_message(Msg::ProcessingComplete(None));
                         }
                     }
@@ -119,22 +125,22 @@ impl Component for SubimageSearch {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let main_onchange = self.handle_file_upload(ctx, Msg::MainImageLoaded);
         let search_onchange = self.handle_file_upload(ctx, Msg::SearchImageLoaded);
-        
+
         // Determine if the Process button should be enabled
         let both_images_loaded = self.main_image.is_some() && self.search_image.is_some();
         let process_button_class = if both_images_loaded && !self.processing {
-            "process-button ready" 
-        } else { 
-            "process-button disabled" 
+            "process-button ready"
+        } else {
+            "process-button disabled"
         };
-        
+
         // Handle Process button click
         let on_process = ctx.link().callback(|_| Msg::ProcessImages);
-        
+
         // Handle max_mse input change
         let on_max_mse_change = ctx.link().callback(|e: InputEvent| {
             let value_str = e.target_dyn_into::<HtmlInputElement>().unwrap().value();
-            let value = value_str.parse::<f64>().unwrap();  // safe, because input type is number
+            let value = value_str.parse::<f64>().unwrap(); // safe, because input type is number
             Msg::UpdateMaxMse(value)
         });
 
@@ -328,8 +334,8 @@ impl Component for SubimageSearch {
     }
 }
 
-fn image_search_help() -> Html{
-     html! {
+fn image_search_help() -> Html {
+    html! {
         <ul class="image-hint">
             <li><strong>{"Orientation"}</strong>{" has to be the same as in main image."}</li>
             <li><strong>{"Scale"}</strong>{" has to be the same as in main image."}</li>
@@ -339,7 +345,14 @@ fn image_search_help() -> Html{
     }
 }
 
-fn image_input(label: &str, input_id: &str, preview_id: &str, onchange: Callback<Event>, image: &Option<String>, help: Option<Html>) -> Html {
+fn image_input(
+    label: &str,
+    input_id: &str,
+    preview_id: &str,
+    onchange: Callback<Event>,
+    image: &Option<String>,
+    help: Option<Html>,
+) -> Html {
     html! {
         <label class="image-input" id={format!("{}-container", input_id)}>
             <h3>{label}</h3>
@@ -372,26 +385,30 @@ fn image_input(label: &str, input_id: &str, preview_id: &str, onchange: Callback
 
 // Helper methods for SubimageSearch
 impl SubimageSearch {
-    fn handle_file_upload(&self, ctx: &Context<Self>, msg_creator: fn(String) -> Msg) -> Callback<Event> {
+    fn handle_file_upload(
+        &self,
+        ctx: &Context<Self>,
+        msg_creator: fn(String) -> Msg,
+    ) -> Callback<Event> {
         let link = ctx.link().clone();
-        
+
         Callback::from(move |e: Event| {
             let target = e.target().unwrap();
             let input: HtmlInputElement = target.dyn_into().unwrap();
-            
+
             if let Some(file_list) = input.files() {
                 if let Some(file) = file_list.get(0) {
                     let file_reader = FileReader::new().unwrap();
                     let fr_clone = file_reader.clone();
                     let link_clone = link.clone();
-                    
+
                     let onload_closure = Closure::wrap(Box::new(move |_: Event| {
                         let result = fr_clone.result().unwrap();
                         if let Some(data_url) = result.as_string() {
                             link_clone.send_message(msg_creator(data_url));
                         }
                     }) as Box<dyn FnMut(_)>);
-                    
+
                     file_reader.set_onload(Some(onload_closure.as_ref().unchecked_ref()));
                     file_reader.read_as_data_url(&file).unwrap();
                     onload_closure.forget();
@@ -408,14 +425,18 @@ async fn load_images_for_processing() -> Result<(ImageData, ImageData), String> 
     log::info!("main image loaded");
     let search_image_data = load_image_data("searchImagePreview").await?;
     log::info!("search image loaded");
-    
+
     Ok((main_image_data, search_image_data))
 }
 
 // Load a single image and extract its pixel data
 
 async fn load_image_data(image_id: &str) -> Result<ImageData, String> {
-    let image: web_sys::HtmlImageElement = document().get_element_by_id(image_id).unwrap().dyn_into().unwrap();
+    let image: web_sys::HtmlImageElement = document()
+        .get_element_by_id(image_id)
+        .unwrap()
+        .dyn_into()
+        .unwrap();
     ImageData::from_image(&image)
 }
 
