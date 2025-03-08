@@ -129,7 +129,8 @@ impl ImageData {
         );
 
         // y comes first because of memory locality
-        for y in 0..(self.height - search_image.height) {
+        // half-open interval, hence + 1 for the upper bound
+        for y in 0..(self.height - search_image.height + 1) {
             // Update progress once per row
             let progress = y as f32 / total_rows as f32;
             progress_callback(progress);
@@ -138,7 +139,8 @@ impl ImageData {
             yield_now().await;
 
             log::info!("Checking line {}", y);
-            for x in 0..(self.width - search_image.width) {
+            // half-open interval, hence + 1 for the upper bound
+            for x in 0..(self.width - search_image.width + 1) {
                 let tse = self.total_square_error(search_image, x, y, max_tse);
                 let mse: f64 = (tse as f64) / (square_errors_divisor as f64) / (65536.0);
                 if mse <= max_mse {
