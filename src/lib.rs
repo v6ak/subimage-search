@@ -6,7 +6,9 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::{FileReader, HtmlInputElement};
 use yew::prelude::*;
 mod image;
+mod image_input;
 use image::{ImageData, SearchResults};
+use image_input::ImageInput;
 
 // Main application state
 #[derive(Default)]
@@ -162,8 +164,22 @@ impl Component for SubimageSearch {
                             <>
                                 <h2>{"Images"}</h2>
                                 <div class="image-inputs">
-                                    {image_input("Main Image", "mainImageInput", "mainImagePreview", main_onchange, &self.main_image, None)}
-                                    {image_input("Image to search", "searchImageInput", "searchImagePreview", search_onchange, &self.search_image, Some(image_search_help()))}
+                                    <ImageInput
+                                        label="Main Image"
+                                        input_id="mainImageInput"
+                                        preview_id="mainImagePreview"
+                                        onchange={main_onchange}
+                                        image={self.main_image.clone()}
+                                        help={None}
+                                    />
+                                    <ImageInput
+                                        label="Image to search"
+                                        input_id="searchImageInput"
+                                        preview_id="searchImagePreview"
+                                        onchange={search_onchange}
+                                        image={self.search_image.clone()}
+                                        help={Some(image_search_help())}
+                                    />
                                 </div>
 
                                 <h2>{"Settings"}</h2>
@@ -348,44 +364,6 @@ fn image_search_help() -> Html {
             <li><strong>{"Compression artifacts and blur caused by scaling up"}</strong>{" can be handled by increasing the maximum difference."}</li>
             <li><strong>{"Alpha channel"}</strong>{" cannot be used as a wildcard. It is considered as a color component. If you don't know the consequences, you probably don't want to search an image with significant transparency."}</li>
         </ul>
-    }
-}
-
-fn image_input(
-    label: &str,
-    input_id: &str,
-    preview_id: &str,
-    onchange: Callback<Event>,
-    image: &Option<String>,
-    help: Option<Html>,
-) -> Html {
-    html! {
-        <label class="image-input" id={format!("{}-container", input_id)}>
-            <h3>{label}</h3>
-            <input
-                type="file"
-                id={input_id.to_string()}
-                accept="image/*"
-                onchange={onchange}
-            />
-            {
-                if image.is_none() {
-                    html! {
-                        <p>{"Click here to select an image"}</p>
-                    }
-                }else {
-                    html! {
-                        <img
-                            id={preview_id.to_string()}
-                            class="preview"
-                            alt={format!("{} preview", label)}
-                            src={image.clone().unwrap_or_default()}
-                        />
-                    }
-                }
-            }
-            {help.unwrap_or_default()}
-        </label>
     }
 }
 
