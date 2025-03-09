@@ -6,7 +6,6 @@ use wasm_bindgen_futures::spawn_local;
 use web_sys::FileList;
 use web_sys::FileReader;
 use yew::prelude::*;
-mod drag_drop;
 mod image;
 use image::{ImageData, SearchResults};
 

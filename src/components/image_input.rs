@@ -1,11 +1,57 @@
-use crate::drag_drop::prevent_default;
-use crate::drag_drop::setup_drag_blocking_handlers;
-use crate::drag_drop::setup_drag_handlers;
-
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, Event, HtmlElement};
 use web_sys::{FileList, HtmlInputElement};
 use yew::prelude::*;
+
+use wasm_bindgen::prelude::*;
+
+fn prevent_default(event: &Event) {
+    event.prevent_default();
+    event.stop_propagation();
+}
+
+fn setup_drag_handlers(element: &HtmlElement) {
+    let el = element.clone();
+    let dragenter = Closure::wrap(Box::new(move |e: Event| {
+        prevent_default(&e);
+        el.set_class_name("image-input dragover");
+    }) as Box<dyn FnMut(_)>);
+    element
+        .add_event_listener_with_callback("dragenter", dragenter.as_ref().unchecked_ref())
+        .unwrap();
+    dragenter.forget();
+
+    let el = element.clone();
+    let dragover = Closure::wrap(Box::new(move |e: Event| {
+        prevent_default(&e);
+        el.set_class_name("image-input dragover");
+    }) as Box<dyn FnMut(_)>);
+    element
+        .add_event_listener_with_callback("dragover", dragover.as_ref().unchecked_ref())
+        .unwrap();
+    dragover.forget();
+
+    let el = element.clone();
+    let dragleave = Closure::wrap(Box::new(move |e: Event| {
+        prevent_default(&e);
+        el.set_class_name("image-input");
+    }) as Box<dyn FnMut(_)>);
+    element
+        .add_event_listener_with_callback("dragleave", dragleave.as_ref().unchecked_ref())
+        .unwrap();
+    dragleave.forget();
+}
+
+fn setup_drag_blocking_handlers(element: &HtmlElement) {
+    let handler = Closure::wrap(Box::new(|e: Event| {
+        prevent_default(&e);
+    }) as Box<dyn FnMut(_)>);
+    for event in ["dragenter", "dragover", "dragleave", "drop"].iter() {
+        element
+            .add_event_listener_with_callback(event, handler.as_ref().unchecked_ref())
+            .unwrap();
+    }
+}
 
 #[derive(Properties, PartialEq)]
 pub struct ImageInputProps {
