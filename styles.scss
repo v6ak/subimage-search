@@ -34,6 +34,9 @@ body {
     input {
       display: none;
     }
+    &.disabled {
+      color: gray;
+    }
     .upload-prompt {
       text-align: center;
       padding: 2em;
