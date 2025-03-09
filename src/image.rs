@@ -109,23 +109,26 @@ impl ImageData {
     where
         F: Fn(f32) + 'static,
     {
+        let squared_errors_divisor = search_image.width * search_image.height * 4;
+        let max_tse = ((max_mse as TotalSquaredErrorFloat)
+            * (squared_errors_divisor as TotalSquaredErrorFloat)
+            * 65536.0)
+            .ceil() as TotalSquaredError;
         let mut results = SearchResults::new(
             max_results,
             search_image.width,
             search_image.height,
             self.width,
             self.height,
+            squared_errors_divisor,
+            max_tse,
         );
-        let square_errors_divisor = results.get_square_errors_divisor();
-        let max_tse = ((max_mse as TotalSquaredErrorFloat)
-            * (square_errors_divisor as TotalSquaredErrorFloat)
-            * 65536.0)
-            .ceil() as TotalSquaredError;
+
         let total_rows = self.height - search_image.height;
         log::info!("max_tse: {}", max_tse);
         log::info!(
             "MSE for max_tse: {}",
-            (max_tse as f64) / (square_errors_divisor as f64) / 65536.0
+            (max_tse as f64) / (squared_errors_divisor as f64) / 65536.0
         );
 
         if self.height < search_image.height {
@@ -147,8 +150,8 @@ impl ImageData {
             log::info!("Checking line {}", y);
             // half-open interval, hence + 1 for the upper bound
             for x in 0..(self.width - search_image.width + 1) {
-                let tse = self.total_square_error(search_image, x, y, max_tse);
-                if tse <= max_tse {
+                let tse = self.total_square_error(search_image, x, y, results.tse_threshold);
+                if tse <= results.tse_threshold {
                     results.push(SearchResult { x, y, tse });
                     log::info!(
                         "pos ({}, {}) ({} pxs)",
@@ -191,6 +194,8 @@ pub struct SearchResults {
     template_height: u32,
     main_width: u32,
     main_height: u32,
+    squared_error_divisor: u32,
+    tse_threshold: TotalSquaredError,
 }
 
 impl SearchResults {
@@ -200,6 +205,8 @@ impl SearchResults {
         template_height: u32,
         main_width: u32,
         main_height: u32,
+        squared_error_divisor: u32,
+        tse_threshold: TotalSquaredError,
     ) -> SearchResults {
         SearchResults {
             results_ordered: Vec::with_capacity(capacity as usize),
@@ -209,6 +216,8 @@ impl SearchResults {
             template_width,
             main_width,
             main_height,
+            squared_error_divisor,
+            tse_threshold,
         }
     }
     pub fn push(&mut self, result: SearchResult) {
@@ -233,6 +242,17 @@ impl SearchResults {
         match self.results_ordered.iter().position(|r| r.tse > result.tse) {
             Some(pos) => self.results_ordered.insert(pos, result), // insert before the first element with higher tse
             None => self.results_ordered.push(result),
+        }
+        if self.results_ordered.len() == self.capacity as usize {
+            // results with the same TSE aren't interesting, so we could go even lower (-1),
+            // but we have to handle integer underflow
+            self.tse_threshold =
+                TotalSquaredError::saturating_sub(self.results_ordered.last().unwrap().tse, 1);
+            log::info!(
+                "too many items, new TSE threshold: {} => MSE threshold: {}",
+                self.tse_threshold,
+                (self.tse_threshold as f64) / (self.squared_error_divisor as f64) / 65536.0
+            );
         }
     }
     pub fn has_overflown(&self) -> bool {
@@ -261,6 +281,6 @@ impl SearchResults {
         self.main_width
     }
     pub fn get_square_errors_divisor(&self) -> u32 {
-        self.template_width * self.template_height * 4
+        self.squared_error_divisor
     }
 }
