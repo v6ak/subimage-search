@@ -116,7 +116,7 @@ impl ImageData {
             self.width,
             self.height,
         );
-        let square_errors_divisor = search_image.width * search_image.height * 4;
+        let square_errors_divisor = results.get_square_errors_divisor();
         let max_tse = ((max_mse as TotalSquaredErrorFloat)
             * (square_errors_divisor as TotalSquaredErrorFloat)
             * 65536.0)
@@ -148,9 +148,8 @@ impl ImageData {
             // half-open interval, hence + 1 for the upper bound
             for x in 0..(self.width - search_image.width + 1) {
                 let tse = self.total_square_error(search_image, x, y, max_tse);
-                let mse: f64 = (tse as f64) / (square_errors_divisor as f64) / (65536.0);
-                if mse <= max_mse {
-                    results.push(SearchResult { x, y, mse });
+                if tse <= max_tse {
+                    results.push(SearchResult { x, y, tse });
                     log::info!(
                         "pos ({}, {}) ({} pxs)",
                         x,
@@ -171,7 +170,13 @@ impl ImageData {
 pub struct SearchResult {
     pub x: u32,
     pub y: u32,
-    pub mse: f64,
+    pub tse: TotalSquaredError,
+}
+
+impl SearchResult {
+    pub fn get_mse(&self, square_errors_divisor: u32) -> f64 {
+        (self.tse as f64) / (square_errors_divisor as f64) / 65536.0
+    }
 }
 
 #[derive(Debug)]
@@ -211,7 +216,7 @@ impl SearchResults {
             self.insert_ordered(result);
         } else {
             self.overflown = true;
-            if result.mse < self.results_ordered[self.results_ordered.len() - 1].mse {
+            if result.tse < self.results_ordered[self.results_ordered.len() - 1].tse {
                 self.results_ordered.pop();
                 self.insert_ordered(result);
             } else {
@@ -224,9 +229,9 @@ impl SearchResults {
         );
     }
     fn insert_ordered(&mut self, result: SearchResult) {
-        // find element with higher mse
-        match self.results_ordered.iter().position(|r| r.mse > result.mse) {
-            Some(pos) => self.results_ordered.insert(pos, result), // insert before the first element with higher mse
+        // find element with higher tse
+        match self.results_ordered.iter().position(|r| r.tse > result.tse) {
+            Some(pos) => self.results_ordered.insert(pos, result), // insert before the first element with higher tse
             None => self.results_ordered.push(result),
         }
     }
@@ -254,5 +259,8 @@ impl SearchResults {
     }
     pub fn get_main_width(&self) -> u32 {
         self.main_width
+    }
+    pub fn get_square_errors_divisor(&self) -> u32 {
+        self.template_width * self.template_height * 4
     }
 }

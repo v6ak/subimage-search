@@ -251,7 +251,7 @@ impl Component for SubimageSearch {
                                                                     "left: {}%; top: {}%; width: {}%; height: {}%",
                                                                     x_percent, y_percent, width_percent, height_percent
                                                                 )}
-                                                                title={format!("#{} | MSE: {:.4}", i+1, m.mse)}
+                                                                title={format!("#{} | MSE: {:.4}", i+1, m.get_mse(search_results.get_square_errors_divisor()))}
                                                                 data-match-id={i.to_string()}
                                                             />
                                                         }
@@ -263,7 +263,11 @@ impl Component for SubimageSearch {
                                                     search_results.get_matches().iter().enumerate().map(|(i, m)| {
                                                         html! {
                                                             <li class="match-item" data-match-id={i.to_string()}>
-                                                                {format!("Match at ({}, {}) - MSE: {:.4}%", m.x, m.y, m.mse*100.0)}
+                                                                {format!("Match at ({}, {}) - MSE: {:.4}%",
+                                                                    m.x,
+                                                                    m.y,
+                                                                    m.get_mse(search_results.get_square_errors_divisor())*100.0
+                                                                )}
                                                             </li>
                                                         }
                                                     }).collect::<Html>()
