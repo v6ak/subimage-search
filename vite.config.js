@@ -18,7 +18,7 @@ const rustWatcher = () => {
       
       // Recompile when .rs files change
       server.watcher.on('change', (filePath) => {
-        if (filePath.endsWith('.rs')) {
+        if (filePath.endsWith('.rs') || filePath.startsWith(path.resolve(__dirname, 'Cargo.'))) {
           console.log('\nRust file changed. Recompiling...');
           compileRust();
         }
