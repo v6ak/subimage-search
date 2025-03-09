@@ -73,7 +73,7 @@ impl ImageData {
      * starting at the given coordinates.
      * max_tse is just a hint, the function may return higher value when max_tse is exceeded.
      */
-    pub fn total_square_error(
+    pub fn total_squared_error(
         &self,
         search_image: &ImageData,
         x: u32,
@@ -84,12 +84,11 @@ impl ImageData {
         for dy in 0..search_image.height {
             let main_pixels = self.get_pixels(x, y + dy, search_image.width as usize);
             let search_pixels = search_image.get_pixels(0, dy, search_image.width as usize);
-            let square_errors: TotalSquaredError = main_pixels
+            tse += main_pixels
                 .iter()
                 .zip(search_pixels)
                 .map(|(m, s)| ((m - s) as i32).pow(2) as TotalSquaredError)
-                .sum();
-            tse += square_errors;
+                .sum::<TotalSquaredError>();
 
             // We might do this in the inner cycle. It would be more precise, but with more overhead. Not sure which is better.
             if tse > max_tse {
@@ -150,7 +149,7 @@ impl ImageData {
             log::info!("Checking line {}", y);
             // half-open interval, hence + 1 for the upper bound
             for x in 0..(self.width - search_image.width + 1) {
-                let tse = self.total_square_error(search_image, x, y, results.tse_threshold);
+                let tse = self.total_squared_error(search_image, x, y, results.tse_threshold);
                 if tse <= results.tse_threshold {
                     results.push(SearchResult { x, y, tse });
                     log::info!(
@@ -177,8 +176,8 @@ pub struct SearchResult {
 }
 
 impl SearchResult {
-    pub fn get_mse(&self, square_errors_divisor: u32) -> f64 {
-        (self.tse as f64) / (square_errors_divisor as f64) / 65536.0
+    pub fn get_mse(&self, squared_errors_divisor: u32) -> f64 {
+        (self.tse as f64) / (squared_errors_divisor as f64) / 65536.0
     }
 }
 
@@ -280,7 +279,7 @@ impl SearchResults {
     pub fn get_main_width(&self) -> u32 {
         self.main_width
     }
-    pub fn get_square_errors_divisor(&self) -> u32 {
+    pub fn get_squared_errors_divisor(&self) -> u32 {
         self.squared_error_divisor
     }
 }
