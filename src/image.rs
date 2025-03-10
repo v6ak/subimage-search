@@ -20,6 +20,12 @@ pub struct ImageData {
     pixels: Vec<u8>, // RGBA pixel data
 }
 
+fn subpixel_squared_error(a: u8, b: u8) -> TotalSquaredError {
+    // TotalSquaredError has wider range than needed, but it is fine for now.
+    // inputs are u8. Their difference is i16 (i9). Their second power is i32 (i17).
+    (a as i32 - b as i32).pow(2) as TotalSquaredError
+}
+
 /*
 subpixel: 8b
 square error: 16b
@@ -87,7 +93,7 @@ impl ImageData {
             tse += main_pixels
                 .iter()
                 .zip(search_pixels)
-                .map(|(m, s)| ((m - s) as i32).pow(2) as TotalSquaredError)
+                .map(|(m, s)| subpixel_squared_error(*m, *s))
                 .sum::<TotalSquaredError>();
 
             // We might do this in the inner cycle. It would be more precise, but with more overhead. Not sure which is better.
@@ -281,5 +287,58 @@ impl SearchResults {
     }
     pub fn get_squared_errors_divisor(&self) -> u32 {
         self.squared_error_divisor
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_subpixel_squared_error() {
+        // AI-generated test cases
+        assert_eq!(subpixel_squared_error(0, 0), 0);
+        assert_eq!(subpixel_squared_error(255, 255), 0);
+        assert_eq!(subpixel_squared_error(0, 255), 65025);
+        assert_eq!(subpixel_squared_error(255, 0), 65025);
+        assert_eq!(subpixel_squared_error(128, 128), 0);
+        assert_eq!(subpixel_squared_error(128, 0), 16384);
+    }
+
+    #[test]
+    fn test_subpixel_squared_error_symmetry() {
+        for i in 0..=255 {
+            for j in 0..=255 {
+                assert_eq!(subpixel_squared_error(i, j), subpixel_squared_error(j, i));
+            }
+        }
+    }
+
+    #[test]
+    fn test_subpixel_squared_error_equal() {
+        for i in 0..=255 {
+            assert_eq!(subpixel_squared_error(i, i), 0);
+        }
+    }
+
+    #[test]
+    fn test_subpixel_squared_error_one() {
+        for i in 0..=254 {
+            assert_eq!(subpixel_squared_error(i, i + 1), 1);
+        }
+    }
+
+    #[test]
+    fn test_subpixel_squared_error_two() {
+        for i in 0..=253 {
+            assert_eq!(subpixel_squared_error(i, i + 2), 4);
+        }
+    }
+
+    #[test]
+    fn test_subpixel_squared_error_three() {
+        for i in 0..=252 {
+            assert_eq!(subpixel_squared_error(i, i + 3), 9);
+        }
     }
 }
